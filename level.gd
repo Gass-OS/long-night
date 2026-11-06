@@ -10,7 +10,7 @@ void fragment() {
 	vec2 uv = UV - vec2(0.5);
 	float v = smoothstep(0.28, 0.85, length(uv * vec2(1.15, 1.0)));
 	float g = fract(sin(dot(UV * vec2(1280.0, 720.0) + vec2(TIME * 37.0, TIME * 11.0), vec2(12.9898, 78.233))) * 43758.5453);
-	COLOR = vec4(0.0, 0.0, 0.0, clamp(v * 0.75 + g * 0.07, 0.0, 1.0));
+	COLOR = vec4(0.0, 0.0, 0.0, clamp(v * 0.58 + g * 0.045, 0.0, 1.0));
 }
 """
 
@@ -68,6 +68,15 @@ func _ready() -> void:
 	player.position = checkpoint
 	add_child(player)
 	player.rig.footstep.connect(_on_footstep)
+	# Soft fill light keeps the main character readable.
+	var player_fill := OmniLight3D.new()
+	player_fill.name = "PlayerVisibilityFill"
+	player_fill.position = Vector3(0.0, 1.1, 0.0)
+	player_fill.omni_range = 5.5
+	player_fill.light_energy = 0.85
+	player_fill.light_color = Color(0.78, 0.84, 1.0)
+	player_fill.shadow_enabled = false
+	player.add_child(player_fill)
 
 	cam = Camera3D.new()
 	cam.position = Vector3(0, 2.5, 9)
@@ -160,20 +169,20 @@ func _setup_environment() -> void:
 	env.sky = sky
 
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.3, 0.36, 0.48)
-	env.ambient_light_energy = 0.5
+	env.ambient_light_color = Color(0.38, 0.42, 0.52)
+	env.ambient_light_energy = 0.72
 
 	env.fog_enabled = true
-	env.fog_light_color = Color(0.07, 0.09, 0.13)
-	env.fog_density = 0.012
+	env.fog_light_color = Color(0.09, 0.11, 0.15)
+	env.fog_density = 0.005
 
 	env.volumetric_fog_enabled = true
-	env.volumetric_fog_density = 0.035
+	env.volumetric_fog_density = 0.014
 	env.volumetric_fog_albedo = Color(0.5, 0.56, 0.66)
-	env.volumetric_fog_emission = Color(0.01, 0.015, 0.025)
-	env.volumetric_fog_length = 48.0
+	env.volumetric_fog_emission = Color(0.015, 0.018, 0.025)
+	env.volumetric_fog_length = 60.0
 	env.volumetric_fog_anisotropy = 0.55
-	env.volumetric_fog_ambient_inject = 0.3
+	env.volumetric_fog_ambient_inject = 0.45
 
 	env.ssao_enabled = true
 	env.ssao_radius = 1.2
@@ -186,8 +195,8 @@ func _setup_environment() -> void:
 
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
 	env.adjustment_enabled = true
-	env.adjustment_saturation = 0.6
-	env.adjustment_contrast = 1.15
+	env.adjustment_saturation = 0.72
+	env.adjustment_contrast = 1.08
 
 	var we := WorldEnvironment.new()
 	we.environment = env
@@ -217,7 +226,7 @@ func _apply_quality() -> void:
 	sun.shadow_enabled = q >= 1
 	cam_attrs.dof_blur_far_enabled = q >= 2
 	cam_attrs.dof_blur_near_enabled = q >= 2
-	var rain_amounts := [600, 1000, 1500]
+	var rain_amounts := [420, 650, 850]
 	weather.rain.amount = rain_amounts[q]
 
 
@@ -495,7 +504,7 @@ func _in_pit(x: float) -> bool:
 
 
 func _build_decor() -> void:
-	for x in [4.0, 17.0, 36.0, 62.0, 75.0, 94.0, 104.0]:
+	for x in [-4.0, 4.0, 10.0, 17.0, 24.0, 30.0, 36.0, 43.0, 50.0, 56.0, 62.0, 69.0, 75.0, 81.0, 87.0, 94.0, 99.0, 104.0, 110.0]:
 		_add_lamp(x)
 	for i in range(lamp_xs.size() - 1):
 		var xa: float = lamp_xs[i]
@@ -617,8 +626,8 @@ func _add_lamp(x: float) -> void:
 
 	var l := OmniLight3D.new()
 	l.position = Vector3(x + 0.6, 3.2, -0.6)
-	l.omni_range = 7.0
-	l.light_energy = 1.6
+	l.omni_range = 8.5
+	l.light_energy = 1.8
 	l.light_color = Color(1.0, 0.72, 0.4)
 	add_child(l)
 	lamp_lights.append(l)
@@ -838,7 +847,7 @@ func _process(delta: float) -> void:
 			l.light_energy = base * (0.95 + 0.05 * sin(flick_t * 9.0 + i))
 		else:
 			var n := sin(flick_t * 23.0 + i * 5.0) * sin(flick_t * 3.7 + i)
-			l.light_energy = base * (0.1 if n > 0.7 else 1.0)
+			l.light_energy = base * (0.72 if n > 0.82 else 1.0)
 
 	if fps_label != null:
 		fps_timer -= delta

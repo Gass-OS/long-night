@@ -25,7 +25,7 @@ func _build_rain() -> void:
 	mesh.size = Vector3(0.008, 0.34, 0.008)
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.albedo_color = Color(0.72, 0.8, 0.95, 0.19)
+	mat.albedo_color = Color(0.72, 0.8, 0.95, 0.14)
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mesh.material = mat
 
@@ -39,7 +39,7 @@ func _build_rain() -> void:
 	pm.gravity = Vector3(0.0, -10.0, 0.0)
 
 	rain = GPUParticles3D.new()
-	rain.amount = 420
+	rain.amount = 320
 	rain.lifetime = 0.7
 	rain.preprocess = 0.2
 	rain.local_coords = false
