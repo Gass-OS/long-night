@@ -62,7 +62,7 @@ jobs:
       - name: Export APK
         run: |
           mkdir -p build
-          echo "ANDROID_HOME=$ANDROID_HOME"; ls $ANDROID_HOME $ANDROID_HOME/build-tools $ANDROID_HOME/platforms $ANDROID_HOME/cmdline-tools; cat ~/.config/godot/editor_settings-4.3.tres; godot --headless --verbose --path . --export-debug "Android" build/LongNight.apk
+          ls -la ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable/; godot --headless --verbose --path . --export-debug "Android" build/LongNight.apk 2>&1 | grep -iE "error|template|invalid|missing|keystore|sdk" | head -40; test -f build/LongNight.apk
 
       - uses: actions/upload-artifact@v4
         with:
