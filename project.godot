@@ -21,3 +21,7 @@ textures/vram_compression/import_etc2_astc=true
 
 renderer/rendering_method="forward_plus"
 renderer/rendering_method.mobile="forward_plus"
+
+[autoload]
+
+Look="*res://look.gd"
