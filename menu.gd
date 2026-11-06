@@ -38,7 +38,8 @@ func _ready() -> void:
 	spacer.custom_minimum_size = Vector2(0, 30)
 	box.add_child(spacer)
 
-	_button(box, "PLAY", _on_play)
+	_button(box, "CHAPTER 1", _on_play)
+	_button(box, "CHAPTER 2  -  THE SCHOOL", _on_chapter_two)
 	_button(box, "QUIT", _on_quit)
 
 	# Slow flicker on the title
@@ -58,6 +59,10 @@ func _button(parent: Control, text: String, cb: Callable) -> void:
 
 func _on_play() -> void:
 	get_tree().change_scene_to_file("res://main.tscn")
+
+
+func _on_chapter_two() -> void:
+	get_tree().change_scene_to_file("res://stage2.tscn")
 
 
 func _on_quit() -> void:

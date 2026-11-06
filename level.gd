@@ -58,7 +58,9 @@ func _ready() -> void:
 	add_child(player)
 
 	cam = Camera3D.new()
-	cam.position = Vector3(0, 2.5, 9)
+	cam.projection = Camera3D.PROJECTION_ORTHOGONAL
+	cam.size = 9.0
+	cam.position = Vector3(0, 2.5, 12)
 	add_child(cam)
 	cam.make_current()
 
@@ -593,7 +595,7 @@ func _physics_process(delta: float) -> void:
 
 func _process(delta: float) -> void:
 	if player != null and cam != null:
-		var target := Vector3(player.position.x, player.position.y + 2.5, 9.0)
+		var target := Vector3(player.position.x, player.position.y + 2.5, 12.0)
 		cam.position = cam.position.lerp(target, clampf(delta * 4.0, 0.0, 1.0))
 
 	# Street lamps: even ones hum, odd ones stutter

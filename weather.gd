@@ -22,26 +22,26 @@ func _ready() -> void:
 
 func _build_rain() -> void:
 	var mesh := BoxMesh.new()
-	mesh.size = Vector3(0.012, 0.5, 0.012)
+	mesh.size = Vector3(0.008, 0.34, 0.008)
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.albedo_color = Color(0.72, 0.8, 0.95, 0.35)
+	mat.albedo_color = Color(0.72, 0.8, 0.95, 0.19)
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mesh.material = mat
 
 	var pm := ParticleProcessMaterial.new()
 	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
-	pm.emission_box_extents = Vector3(14.0, 0.2, 5.0)
+	pm.emission_box_extents = Vector3(8.0, 0.2, 1.2)
 	pm.direction = Vector3(0.12, -1.0, 0.0)
-	pm.spread = 2.0
-	pm.initial_velocity_min = 15.0
-	pm.initial_velocity_max = 18.0
+	pm.spread = 1.5
+	pm.initial_velocity_min = 11.0
+	pm.initial_velocity_max = 14.0
 	pm.gravity = Vector3(0.0, -10.0, 0.0)
 
 	rain = GPUParticles3D.new()
-	rain.amount = 1400
-	rain.lifetime = 0.55
-	rain.preprocess = 0.6
+	rain.amount = 420
+	rain.lifetime = 0.7
+	rain.preprocess = 0.2
 	rain.local_coords = false
 	rain.visibility_aabb = AABB(Vector3(-20, -12, -10), Vector3(40, 24, 20))
 	rain.process_material = pm
@@ -51,7 +51,7 @@ func _build_rain() -> void:
 
 func _process(delta: float) -> void:
 	if cam != null and rain != null:
-		rain.global_position = Vector3(cam.global_position.x, cam.global_position.y + 5.0, 0.0)
+		rain.global_position = Vector3(cam.global_position.x, cam.global_position.y + 4.0, 3.5)
 
 	timer -= delta
 	if timer <= 0.0:

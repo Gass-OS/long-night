@@ -56,12 +56,15 @@ jobs:
           EOF
           done
 
-      - name: Generate 1980 story narration
+      - name: Generate natural 1980 story narration
         run: |
-          sudo apt-get update
-          sudo apt-get install -y espeak-ng
+          python3 -m pip install --user piper-tts
           mkdir -p assets/audio
-          espeak-ng -v en-us+m3 -s 126 -p 30 -a 165 -w assets/audio/intro_narration.wav "I still remember Kasserine in 1980. A quiet city beneath the mountains. A place where everyone knew their neighbours. But when the lights went out, strange things began happening after midnight. People disappeared. Doors were left open. And the old streets fell silent. Nobody believed the warnings. Until that night..."
+          MODEL=assets/audio/en_US-lessac-medium.onnx
+          CONFIG=assets/audio/en_US-lessac-medium.onnx.json
+          wget -q 'https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx' -O "$MODEL"
+          wget -q 'https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx.json' -O "$CONFIG"
+          echo "I still remember Kasserine in 1980. A quiet city beneath the mountains. A place where everyone knew their neighbours. But when the lights went out, strange things began happening after midnight. People disappeared. Doors were left open. And the old streets fell silent. Nobody believed the warnings. Until that night..." | $HOME/.local/bin/piper --model "$MODEL" --config "$CONFIG" --length_scale 1.08 --noise_scale 0.667 --noise_w 0.8 --sentence_silence 0.35 --output_file assets/audio/intro_narration.wav
 
       - name: Import project
         run: godot --headless --path . --import || true
