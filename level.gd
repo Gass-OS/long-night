@@ -5,7 +5,6 @@ const DOOR_OPEN_Y := 4.7
 
 var player: CharacterBody3D
 var cam: Camera3D
-var touches := {}
 
 var plate: Area3D
 var plate_mat: StandardMaterial3D
@@ -28,7 +27,10 @@ func _ready() -> void:
 	add_child(cam)
 	cam.make_current()
 
-	_build_touch_hints()
+	var hud = CanvasLayer.new()
+	hud.set_script(load("res://hud.gd"))
+	hud.player = player
+	add_child(hud)
 
 
 func _setup_environment() -> void:
@@ -79,6 +81,8 @@ func _build_level() -> void:
 	_add_box(Vector3(6, 0.5, 0), Vector3(2, 1, 2), Color(0.4, 0.34, 0.28))
 	_add_box(Vector3(9, 1.2, 0), Vector3(2, 0.4, 2), Color(0.4, 0.34, 0.28))
 	_add_box(Vector3(12.5, 0.4, 0), Vector3(1.5, 0.8, 1.5), Color(0.45, 0.3, 0.2))
+	# Low vent after the door: crouch (DOWN) to crawl under it
+	_add_box(Vector3(34, 1.5, 0), Vector3(6, 1.0, 4), Color(0.2, 0.2, 0.24))
 	# Background buildings (no collision) for depth
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 7
@@ -101,6 +105,7 @@ func _add_crate(pos: Vector3) -> void:
 	rb.axis_lock_angular_x = true
 	rb.axis_lock_angular_y = true
 	rb.axis_lock_angular_z = true
+	rb.add_to_group("crate")
 	var mesh := MeshInstance3D.new()
 	var bm := BoxMesh.new()
 	bm.size = Vector3(1, 1, 1)
@@ -118,10 +123,8 @@ func _add_crate(pos: Vector3) -> void:
 
 
 func _build_puzzle() -> void:
-	# Pushable crate
 	_add_crate(Vector3(16.0, 0.52, 0.0))
 
-	# Pressure plate (detects player and crates)
 	plate = Area3D.new()
 	plate.position = Vector3(22.0, 0.0, 0.0)
 	var pcol := CollisionShape3D.new()
@@ -151,7 +154,6 @@ func _build_puzzle() -> void:
 	plate_light.light_color = Color(0.9, 0.15, 0.1)
 	add_child(plate_light)
 
-	# Door
 	door = AnimatableBody3D.new()
 	door.position = Vector3(26.0, DOOR_CLOSED_Y, 0.0)
 	var dmesh := MeshInstance3D.new()
@@ -169,9 +171,8 @@ func _build_puzzle() -> void:
 	door.add_child(dcol)
 	add_child(door)
 
-	# Warm light beyond the door
 	var lamp := OmniLight3D.new()
-	lamp.position = Vector3(32.0, 2.5, 1.5)
+	lamp.position = Vector3(30.0, 2.5, 1.5)
 	lamp.omni_range = 8.0
 	lamp.light_energy = 1.2
 	lamp.light_color = Color(1.0, 0.75, 0.4)
@@ -199,51 +200,3 @@ func _process(delta: float) -> void:
 		return
 	var target := Vector3(player.position.x, player.position.y + 2.5, 9.0)
 	cam.position = cam.position.lerp(target, clampf(delta * 4.0, 0.0, 1.0))
-
-
-func _input(event: InputEvent) -> void:
-	if event is InputEventScreenTouch:
-		if event.pressed:
-			touches[event.index] = event.position
-		else:
-			touches.erase(event.index)
-		_update_touch()
-	elif event is InputEventScreenDrag:
-		touches[event.index] = event.position
-		_update_touch()
-
-
-func _update_touch() -> void:
-	var w := get_viewport().get_visible_rect().size.x
-	player.touch_left = false
-	player.touch_right = false
-	player.touch_jump = false
-	for p in touches.values():
-		if p.x < w * 0.2:
-			player.touch_left = true
-		elif p.x < w * 0.4:
-			player.touch_right = true
-		elif p.x > w * 0.7:
-			player.touch_jump = true
-
-
-func _build_touch_hints() -> void:
-	var ui := CanvasLayer.new()
-	add_child(ui)
-	_hint(ui, "<", 0.0, 0.2)
-	_hint(ui, ">", 0.2, 0.4)
-	_hint(ui, "JUMP", 0.7, 1.0)
-
-
-func _hint(ui: CanvasLayer, text: String, a_left: float, a_right: float) -> void:
-	var l := Label.new()
-	l.text = text
-	l.anchor_left = a_left
-	l.anchor_right = a_right
-	l.anchor_top = 0.6
-	l.anchor_bottom = 1.0
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	l.add_theme_font_size_override("font_size", 56)
-	l.modulate = Color(1, 1, 1, 0.3)
-	ui.add_child(l)
