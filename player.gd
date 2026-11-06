@@ -9,30 +9,19 @@ const STAND_H := 1.5
 const CROUCH_H := 0.9
 const GRAB_REACH := 1.05
 
-const SKIN := Color(0.86, 0.7, 0.6)
-const SHIRT := Color(0.75, 0.12, 0.1)
-const PANTS := Color(0.12, 0.12, 0.16)
-
 var touch_left := false
 var touch_right := false
 var touch_jump := false
 var touch_down := false
 var touch_push := false
 
-var visual: Node3D
-var arm_l: Node3D
-var arm_r: Node3D
-var leg_l: Node3D
-var leg_r: Node3D
+var rig: Node3D
+var ragdoll: Node3D = null
 var col: CollisionShape3D
 var shape: CapsuleShape3D
-var phase := 0.0
 var crouching := false
 var facing := 1.0
 var grabbed: RigidBody3D = null
-var model_animation: AnimationPlayer
-var model_instance: Node3D
-var using_procedural := false
 
 
 func _ready() -> void:
@@ -43,90 +32,11 @@ func _ready() -> void:
 	col.shape = shape
 	col.position.y = STAND_H / 2.0
 	add_child(col)
-	_build_body()
 
+	rig = Node3D.new()
+	rig.set_script(load("res://character.gd"))
+	add_child(rig)
 
-func _mat(color: Color) -> StandardMaterial3D:
-	var m := StandardMaterial3D.new()
-	m.albedo_color = color
-	return m
-
-
-func _box(parent: Node3D, size: Vector3, color: Color, pos: Vector3) -> MeshInstance3D:
-	var mi := MeshInstance3D.new()
-	var bm := BoxMesh.new()
-	bm.size = size
-	mi.mesh = bm
-	mi.material_override = _mat(color)
-	mi.position = pos
-	parent.add_child(mi)
-	return mi
-
-
-func _limb(pos: Vector3, size: Vector3, color: Color) -> Node3D:
-	var pivot := Node3D.new()
-	pivot.position = pos
-	visual.add_child(pivot)
-	_box(pivot, size, color, Vector3(0, -size.y / 2.0, 0))
-	return pivot
-
-
-func _find_model_animation(node: Node) -> AnimationPlayer:
-        if node is AnimationPlayer:
-                return node as AnimationPlayer
-        for child in node.get_children():
-                var found := _find_model_animation(child)
-                if found != null:
-                        return found
-        return null
-
-
-func _play_model_animation(wanted: String, speed: float = 1.0) -> void:
-        if model_animation == null:
-                return
-
-        var chosen := ""
-        for candidate in model_animation.get_animation_list():
-                var lower := candidate.to_lower()
-                if lower == wanted.to_lower() or lower.ends_with("/" + wanted.to_lower()):
-                        chosen = candidate
-                        break
-
-        if chosen == "":
-                return
-
-        model_animation.speed_scale = speed
-        if String(model_animation.current_animation) != chosen:
-                model_animation.play(chosen, 0.18)
-
-
-func _build_body() -> void:
-        visual = Node3D.new()
-        add_child(visual)
-
-        # Original procedural character restored.
-        using_procedural = true
-        visual.rotation.y = deg_to_rad(90.0)
-        # Procedural character is the intended model.
-
-        _box(visual, Vector3(0.4, 0.5, 0.22), SHIRT, Vector3(0, 0.9, 0))
-
-        var head := MeshInstance3D.new()
-        var sm := SphereMesh.new()
-        sm.radius = 0.17
-        sm.height = 0.34
-        head.mesh = sm
-        head.material_override = _mat(SKIN)
-        head.position = Vector3(0, 1.32, 0)
-        visual.add_child(head)
-
-        arm_l = _limb(Vector3(-0.27, 1.12, 0), Vector3(0.12, 0.5, 0.12), SHIRT)
-        arm_r = _limb(Vector3(0.27, 1.12, 0), Vector3(0.12, 0.5, 0.12), SHIRT)
-        _box(arm_l, Vector3(0.13, 0.13, 0.13), SKIN, Vector3(0, -0.52, 0))
-        _box(arm_r, Vector3(0.13, 0.13, 0.13), SKIN, Vector3(0, -0.52, 0))
-
-        leg_l = _limb(Vector3(-0.1, 0.65, 0), Vector3(0.17, 0.65, 0.17), PANTS)
-        leg_r = _limb(Vector3(0.1, 0.65, 0), Vector3(0.17, 0.65, 0.17), PANTS)
 
 func _set_crouch(v: bool) -> void:
 	crouching = v
@@ -156,14 +66,12 @@ func _physics_process(delta: float) -> void:
 	var push_held := Input.is_key_pressed(KEY_E) or Input.is_key_pressed(KEY_SHIFT) or touch_push
 	var want_jump := Input.is_key_pressed(KEY_SPACE) or Input.is_key_pressed(KEY_UP) or touch_jump
 
-	# Crouch (stay crouched if something is above)
 	if down_held and is_on_floor():
 		_set_crouch(true)
 	elif crouching and not down_held:
 		if not test_move(global_transform, Vector3(0.0, STAND_H - CROUCH_H + 0.05, 0.0)):
 			_set_crouch(false)
 
-	# Grab a crate: hold PUSH while facing it
 	if push_held and is_on_floor() and not crouching:
 		if grabbed == null:
 			grabbed = _find_crate()
@@ -195,46 +103,21 @@ func _physics_process(delta: float) -> void:
 		grabbed.sleeping = false
 		grabbed.linear_velocity.x = dir * spd
 
-	_animate(delta, dir)
+	rig.animate(delta, velocity.x, velocity.y, is_on_floor(), crouching, grabbed != null, facing, dir)
 
 
-func _animate(delta: float, dir: float) -> void:
-        if using_procedural:
-                visual.rotation.y = deg_to_rad(90.0 * facing)
-                phase += delta * (9.0 if dir != 0.0 else 2.0)
-                if arm_l != null and arm_r != null and leg_l != null and leg_r != null:
-                        var swing := sin(phase) * 0.65 if dir != 0.0 else 0.0
-                        arm_l.rotation.x = swing
-                        arm_r.rotation.x = -swing
-                        leg_l.rotation.x = -swing
-                        leg_r.rotation.x = swing
-                return
+func die(push: float) -> void:
+	if ragdoll != null:
+		return
+	rig.visible = false
+	ragdoll = rig.spawn_ragdoll(get_parent(), velocity, push)
 
-        var target_yaw := deg_to_rad(-90.0 * facing)
-        visual.rotation.y = lerp_angle(
-                visual.rotation.y, target_yaw,
-                clampf(delta * 12.0, 0.0, 1.0)
-        )
-
-        var target_scale_y := 0.76 if crouching else 1.0
-        visual.scale.y = lerpf(
-                visual.scale.y, target_scale_y,
-                clampf(delta * 10.0, 0.0, 1.0)
-        )
-
-        if not is_on_floor():
-                _play_model_animation("Special")
-        elif grabbed != null:
-                _play_model_animation("Walk", 0.55 if dir != 0.0 else 1.0)
-        elif dir != 0.0:
-                if crouching:
-                        _play_model_animation("Walk", 0.55)
-                else:
-                        _play_model_animation("Run")
-        else:
-                _play_model_animation("Idle")
 
 func respawn(pos: Vector3) -> void:
+	if ragdoll != null:
+		ragdoll.queue_free()
+		ragdoll = null
+	rig.visible = true
 	position = pos
 	velocity = Vector3.ZERO
 	grabbed = null

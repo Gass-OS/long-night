@@ -1,19 +1,30 @@
 extends Node
 
+static var cache := {}
+
 var whisper_timer := 18.0
 var thunder_p: AudioStreamPlayer
 var whisper_p: AudioStreamPlayer
 var bark_p: AudioStreamPlayer
+var step_p: AudioStreamPlayer
 
 
 func _ready() -> void:
-	_add_player(_make_rain(), -15.0, true)
-	_add_player(_make_drone(), -13.0, true)
-	_add_player(_make_voice(), -19.0, true)
-	thunder_p = _add_player(_make_thunder(), -2.0, false)
-	whisper_p = _add_player(_make_whisper(), -9.0, false)
-	bark_p = _add_player(_make_bark(), -3.0, false)
+	_add_player(_cached("rain", _make_rain), -15.0, true)
+	_add_player(_cached("drone", _make_drone), -13.0, true)
+	_add_player(_cached("voice", _make_voice), -19.0, true)
+	thunder_p = _add_player(_cached("thunder", _make_thunder), -2.0, false)
+	whisper_p = _add_player(_cached("whisper", _make_whisper), -9.0, false)
+	bark_p = _add_player(_cached("bark", _make_bark), -3.0, false)
 	bark_p.max_polyphony = 3
+	step_p = _add_player(_cached("step", _make_step), -14.0, false)
+	step_p.max_polyphony = 4
+
+
+func _cached(key: String, maker: Callable) -> AudioStream:
+	if not cache.has(key):
+		cache[key] = maker.call()
+	return cache[key]
 
 
 func _process(delta: float) -> void:
@@ -32,6 +43,12 @@ func thunder() -> void:
 func bark() -> void:
 	bark_p.pitch_scale = randf_range(0.85, 1.05)
 	bark_p.play()
+
+
+func step(strength: float) -> void:
+	step_p.volume_db = -16.0 + 7.0 * clampf(strength, 0.0, 1.0)
+	step_p.pitch_scale = randf_range(0.85, 1.15)
+	step_p.play()
 
 
 func _add_player(stream: AudioStream, db: float, auto: bool) -> AudioStreamPlayer:
@@ -77,7 +94,6 @@ func _make_rain() -> AudioStreamWAV:
 
 
 func _make_drone() -> AudioStreamWAV:
-	# All frequencies are multiples of 1/8 Hz so the 8 s loop is seamless
 	var rate := 11025
 	var n := rate * 8
 	var s := PackedFloat32Array()
@@ -94,7 +110,6 @@ func _make_drone() -> AudioStreamWAV:
 
 
 func _make_voice() -> AudioStreamWAV:
-	# Ghostly choir: detuned voices with vocal formants, slow vibrato
 	var rate := 11025
 	var n := rate * 8
 	var s := PackedFloat32Array()
@@ -182,4 +197,23 @@ func _make_bark() -> AudioStreamWAV:
 		var noise := randf() * 2.0 - 1.0
 		lp += (noise - lp) * 0.3
 		s[i] = (tone * 0.35 + lp * 0.8) * env * 0.8
+	return _to_wav(s, rate, false)
+
+
+func _make_step() -> AudioStreamWAV:
+	# Wet footstep: soft thud + splashy hiss
+	var rate := 22050
+	var n := int(rate * 0.16)
+	var s := PackedFloat32Array()
+	s.resize(n)
+	var lp := 0.0
+	var lp2 := 0.0
+	for i in n:
+		var t := float(i) / rate
+		var w := randf() * 2.0 - 1.0
+		lp += (w - lp) * 0.25
+		lp2 += (lp - lp2) * 0.05
+		var env := exp(-t * 38.0) * (1.0 - exp(-t * 600.0))
+		var thud := sin(TAU * 90.0 * t) * exp(-t * 40.0) * 0.6
+		s[i] = ((lp - lp2) * 1.2 + thud) * env * 0.7
 	return _to_wav(s, rate, false)

@@ -1,5 +1,6 @@
 extends Node3D
 
+const S = preload("res://settings.gd")
 const DOOR_CLOSED_Y := 1.5
 const DOOR_OPEN_Y := 4.7
 
@@ -7,9 +8,9 @@ const VIGNETTE := """
 shader_type canvas_item;
 void fragment() {
 	vec2 uv = UV - vec2(0.5);
-	float v = smoothstep(0.30, 0.85, length(uv * vec2(1.15, 1.0)));
+	float v = smoothstep(0.28, 0.85, length(uv * vec2(1.15, 1.0)));
 	float g = fract(sin(dot(UV * vec2(1280.0, 720.0) + vec2(TIME * 37.0, TIME * 11.0), vec2(12.9898, 78.233))) * 43758.5453);
-	COLOR = vec4(0.0, 0.0, 0.0, clamp(v * 0.7 + g * 0.06, 0.0, 1.0));
+	COLOR = vec4(0.0, 0.0, 0.0, clamp(v * 0.75 + g * 0.07, 0.0, 1.0));
 }
 """
 
@@ -17,8 +18,12 @@ var player: CharacterBody3D
 var cam: Camera3D
 var sun: DirectionalLight3D
 var env: Environment
+var cam_attrs: CameraAttributesPractical
 var audio
 var weather
+
+var tex_alb: NoiseTexture2D
+var tex_nrm: NoiseTexture2D
 
 var plate: Area3D
 var plate_mat: StandardMaterial3D
@@ -31,7 +36,10 @@ var dogs: Array = []
 var crates: Array = []
 var lamp_lights: Array = []
 var lamp_base: Array = []
+var lamp_xs: Array = []
 var flick_t := 0.0
+var fps_label: Label
+var fps_timer := 0.0
 
 var checkpoint := Vector3(0.0, 0.1, 0.0)
 var checkpoint_xs: Array[float] = [28.5, 38.5, 66.8, 81.6, 100.8]
@@ -42,25 +50,36 @@ var msg_label: Label
 
 
 func _ready() -> void:
+	S.load_cfg()
 	audio = Node.new()
 	audio.set_script(load("res://audio.gd"))
 	add_child(audio)
 
+	_make_textures()
 	_setup_environment()
 	_build_level()
 	_build_puzzle()
 	_build_course()
 	_build_decor()
+	_build_foreground()
 
 	player = CharacterBody3D.new()
 	player.set_script(load("res://player.gd"))
 	player.position = checkpoint
 	add_child(player)
+	player.rig.footstep.connect(_on_footstep)
 
 	cam = Camera3D.new()
-	cam.projection = Camera3D.PROJECTION_ORTHOGONAL
-	cam.size = 9.0
-	cam.position = Vector3(0, 2.5, 12)
+	cam.position = Vector3(0, 2.5, 9)
+	cam_attrs = CameraAttributesPractical.new()
+	cam_attrs.dof_blur_far_enabled = true
+	cam_attrs.dof_blur_far_distance = 13.0
+	cam_attrs.dof_blur_far_transition = 12.0
+	cam_attrs.dof_blur_near_enabled = true
+	cam_attrs.dof_blur_near_distance = 5.0
+	cam_attrs.dof_blur_near_transition = 3.0
+	cam_attrs.dof_blur_amount = 0.08
+	cam.attributes = cam_attrs
 	add_child(cam)
 	cam.make_current()
 
@@ -83,6 +102,47 @@ func _ready() -> void:
 	add_child(hud)
 
 	_build_overlay()
+	_apply_quality()
+
+
+func _make_textures() -> void:
+	var n := FastNoiseLite.new()
+	n.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	n.frequency = 0.035
+	n.fractal_octaves = 4
+	n.seed = 3
+	tex_alb = NoiseTexture2D.new()
+	tex_alb.noise = n
+	tex_alb.width = 512
+	tex_alb.height = 512
+	tex_alb.seamless = true
+
+	var n2 := FastNoiseLite.new()
+	n2.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	n2.frequency = 0.09
+	n2.fractal_octaves = 3
+	n2.seed = 9
+	tex_nrm = NoiseTexture2D.new()
+	tex_nrm.noise = n2
+	tex_nrm.width = 512
+	tex_nrm.height = 512
+	tex_nrm.seamless = true
+	tex_nrm.as_normal_map = true
+	tex_nrm.bump_strength = 7.0
+
+
+func _surface_mat(color: Color, rough: float, tex_scale := 0.4) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color(color.r * 1.8, color.g * 1.8, color.b * 1.8)
+	m.albedo_texture = tex_alb
+	m.normal_enabled = true
+	m.normal_texture = tex_nrm
+	m.normal_scale = 1.2
+	m.roughness = rough
+	m.uv1_triplanar = true
+	m.uv1_world_triplanar = true
+	m.uv1_scale = Vector3(tex_scale, tex_scale, tex_scale)
+	return m
 
 
 func _setup_environment() -> void:
@@ -100,19 +160,34 @@ func _setup_environment() -> void:
 	env.sky = sky
 
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.32, 0.38, 0.5)
-	env.ambient_light_energy = 0.55
+	env.ambient_light_color = Color(0.3, 0.36, 0.48)
+	env.ambient_light_energy = 0.5
+
 	env.fog_enabled = true
 	env.fog_light_color = Color(0.07, 0.09, 0.13)
-	env.fog_density = 0.025
+	env.fog_density = 0.012
+
+	env.volumetric_fog_enabled = true
+	env.volumetric_fog_density = 0.035
+	env.volumetric_fog_albedo = Color(0.5, 0.56, 0.66)
+	env.volumetric_fog_emission = Color(0.01, 0.015, 0.025)
+	env.volumetric_fog_length = 48.0
+	env.volumetric_fog_anisotropy = 0.55
+	env.volumetric_fog_ambient_inject = 0.3
+
+	env.ssao_enabled = true
+	env.ssao_radius = 1.2
+	env.ssao_intensity = 2.2
+
 	env.glow_enabled = true
 	env.glow_intensity = 0.9
 	env.glow_bloom = 0.1
 	env.glow_hdr_threshold = 1.0
-	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+
+	env.tonemap_mode = Environment.TONE_MAPPER_ACES
 	env.adjustment_enabled = true
-	env.adjustment_saturation = 0.75
-	env.adjustment_contrast = 1.08
+	env.adjustment_saturation = 0.6
+	env.adjustment_contrast = 1.15
 
 	var we := WorldEnvironment.new()
 	we.environment = env
@@ -120,12 +195,30 @@ func _setup_environment() -> void:
 
 	sun = DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-50, -25, 0)
-	sun.light_energy = 0.7
+	sun.light_energy = 0.6
 	sun.light_color = Color(0.6, 0.7, 1.0)
 	sun.shadow_enabled = true
 	sun.directional_shadow_max_distance = 40.0
+	sun.light_volumetric_fog_energy = 0.6
 	sun.sky_mode = DirectionalLight3D.SKY_MODE_LIGHT_ONLY
 	add_child(sun)
+
+
+func _apply_quality() -> void:
+	var q: int = S.quality
+	var vp := get_viewport()
+	var msaa := [Viewport.MSAA_DISABLED, Viewport.MSAA_2X, Viewport.MSAA_4X]
+	var scale3d := [0.7, 0.85, 1.0]
+	vp.msaa_3d = msaa[q]
+	vp.scaling_3d_scale = scale3d[q]
+	env.volumetric_fog_enabled = q >= 1
+	env.ssao_enabled = q >= 2
+	env.glow_enabled = q >= 1
+	sun.shadow_enabled = q >= 1
+	cam_attrs.dof_blur_far_enabled = q >= 2
+	cam_attrs.dof_blur_near_enabled = q >= 2
+	var rain_amounts := [600, 1000, 1500]
+	weather.rain.amount = rain_amounts[q]
 
 
 func _add_box(pos: Vector3, size: Vector3, color: Color, solid := true, rough := 0.85) -> void:
@@ -135,10 +228,7 @@ func _add_box(pos: Vector3, size: Vector3, color: Color, solid := true, rough :=
 	var bm := BoxMesh.new()
 	bm.size = size
 	mesh.mesh = bm
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = color
-	mat.roughness = rough
-	mesh.material_override = mat
+	mesh.material_override = _surface_mat(color, rough)
 	body.add_child(mesh)
 	if solid:
 		var col := CollisionShape3D.new()
@@ -149,8 +239,18 @@ func _add_box(pos: Vector3, size: Vector3, color: Color, solid := true, rough :=
 	add_child(body)
 
 
+func _deco_box(pos: Vector3, size: Vector3, color: Color, rough := 0.9) -> void:
+	var mi := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = size
+	mi.mesh = bm
+	mi.material_override = _surface_mat(color, rough)
+	mi.position = pos
+	add_child(mi)
+
+
 func _ground(x0: float, x1: float) -> void:
-	_add_box(Vector3((x0 + x1) / 2.0, -0.5, 0.0), Vector3(x1 - x0, 1.0, 4.0), Color(0.3, 0.26, 0.22), true, 0.35)
+	_add_box(Vector3((x0 + x1) / 2.0, -0.5, 0.0), Vector3(x1 - x0, 1.0, 4.0), Color(0.3, 0.26, 0.22), true, 0.28)
 
 
 func _build_level() -> void:
@@ -158,26 +258,55 @@ func _build_level() -> void:
 	_ground(-20.0, 64.0)
 	_ground(66.4, 92.0)
 	_ground(100.0, 114.0)
-	# Jump practice
 	_add_box(Vector3(6, 0.5, 0), Vector3(2, 1, 2), Color(0.4, 0.34, 0.28))
 	_add_box(Vector3(9, 1.2, 0), Vector3(2, 0.4, 2), Color(0.4, 0.34, 0.28))
 	_add_box(Vector3(12.5, 0.4, 0), Vector3(1.5, 0.8, 1.5), Color(0.45, 0.3, 0.2))
-	# Low vent after the door: crouch (DOWN) to crawl under it
+	# Low vent after the door: crouch to crawl under it
 	_add_box(Vector3(34, 1.5, 0), Vector3(6, 1.0, 4), Color(0.2, 0.2, 0.24))
 	# Safe platforms in the dog zone
 	_add_box(Vector3(40.5, 0.5, 0), Vector3(2, 1, 2), Color(0.4, 0.34, 0.28))
 	_add_box(Vector3(50.5, 0.5, 0), Vector3(2, 1, 2), Color(0.4, 0.34, 0.28))
 
-	# Background buildings
+	# Background buildings with details
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 7
 	var buildings: Array = []
+	var metal := StandardMaterial3D.new()
+	metal.albedo_color = Color(0.1, 0.1, 0.11)
+	metal.roughness = 0.6
 	for i in range(26):
 		var h := rng.randf_range(4.0, 9.0)
 		var w := rng.randf_range(3.0, 5.0)
 		var c := Vector3(i * 5.0 - 5.0, h / 2.0, -5.0 - rng.randf_range(0.0, 3.0))
-		_add_box(c, Vector3(w, h, 2.0), Color(0.16, 0.15, 0.17), false)
+		var tint := rng.randf_range(0.8, 1.2)
+		_deco_box(c, Vector3(w, h, 2.0), Color(0.16 * tint, 0.15 * tint, 0.17 * tint), 0.95)
 		buildings.append([c, w, h])
+		if rng.randf() < 0.4:
+			var tank := MeshInstance3D.new()
+			var cyl := CylinderMesh.new()
+			cyl.top_radius = 0.6
+			cyl.bottom_radius = 0.6
+			cyl.height = 1.2
+			tank.mesh = cyl
+			tank.material_override = metal
+			tank.position = Vector3(c.x + rng.randf_range(-w / 3.0, w / 3.0), h + 0.6, c.z)
+			add_child(tank)
+		if rng.randf() < 0.4:
+			var ant := MeshInstance3D.new()
+			var ab := BoxMesh.new()
+			ab.size = Vector3(0.04, 1.8, 0.04)
+			ant.mesh = ab
+			ant.material_override = metal
+			ant.position = Vector3(c.x + rng.randf_range(-w / 3.0, w / 3.0), h + 0.9, c.z + 0.3)
+			add_child(ant)
+		for k in range(rng.randi_range(1, 3)):
+			var ac := MeshInstance3D.new()
+			var acb := BoxMesh.new()
+			acb.size = Vector3(0.55, 0.38, 0.3)
+			ac.mesh = acb
+			ac.material_override = metal
+			ac.position = Vector3(c.x + rng.randf_range(-w / 2.0 + 0.4, w / 2.0 - 0.4), rng.randf_range(1.5, maxf(h - 1.0, 1.6)), c.z + 1.15)
+			add_child(ac)
 	_build_windows(buildings)
 
 	# Distant mountains (Chaambi silhouette)
@@ -191,6 +320,8 @@ func _build_level() -> void:
 		pm.material_override = mmat
 		pm.position = Vector3(i * 38.0 - 10.0, 10.0, -48.0)
 		add_child(pm)
+
+	_build_rubble()
 
 
 func _build_windows(buildings: Array) -> void:
@@ -219,18 +350,19 @@ func _build_windows(buildings: Array) -> void:
 	lit_mat.emission_enabled = true
 	lit_mat.emission = Color(1.0, 0.7, 0.3)
 	lit_mat.emission_energy_multiplier = 3.0
-	_add_multimesh(lit, lit_mat)
+	_add_multimesh(lit, lit_mat, Vector3(0.45, 0.65, 0.04))
 
 	var dark_mat := StandardMaterial3D.new()
 	dark_mat.albedo_color = Color(0.03, 0.04, 0.06)
-	_add_multimesh(dark, dark_mat)
+	dark_mat.roughness = 0.2
+	_add_multimesh(dark, dark_mat, Vector3(0.45, 0.65, 0.04))
 
 
-func _add_multimesh(transforms: Array, mat: Material) -> void:
+func _add_multimesh(transforms: Array, mat: Material, size: Vector3) -> void:
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	var bm := BoxMesh.new()
-	bm.size = Vector3(0.45, 0.65, 0.04)
+	bm.size = size
 	mm.mesh = bm
 	mm.instance_count = transforms.size()
 	for i in transforms.size():
@@ -239,6 +371,21 @@ func _add_multimesh(transforms: Array, mat: Material) -> void:
 	mi.multimesh = mm
 	mi.material_override = mat
 	add_child(mi)
+
+
+func _build_rubble() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 21
+	var items: Array = []
+	for i in range(220):
+		var x := rng.randf_range(-8.0, 112.0)
+		if _in_pit(x):
+			continue
+		var z := rng.randf_range(-1.9, -0.7) if rng.randf() < 0.5 else rng.randf_range(0.9, 1.9)
+		var s := rng.randf_range(0.04, 0.2)
+		var b := Basis.from_euler(Vector3(rng.randf() * TAU, rng.randf() * TAU, rng.randf() * TAU)).scaled(Vector3(s, s * 0.7, s))
+		items.append(Transform3D(b, Vector3(x, s * 0.3, z)))
+	_add_multimesh(items, _surface_mat(Color(0.2, 0.19, 0.19), 0.8, 1.2), Vector3(1.0, 1.0, 1.0))
 
 
 func _add_crate(pos: Vector3) -> void:
@@ -256,10 +403,7 @@ func _add_crate(pos: Vector3) -> void:
 	var bm := BoxMesh.new()
 	bm.size = Vector3(1, 1, 1)
 	mesh.mesh = bm
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.45, 0.3, 0.2)
-	mat.roughness = 0.9
-	mesh.material_override = mat
+	mesh.material_override = _surface_mat(Color(0.45, 0.3, 0.2), 0.9, 1.0)
 	rb.add_child(mesh)
 	var col := CollisionShape3D.new()
 	var bs := BoxShape3D.new()
@@ -323,11 +467,9 @@ func _build_puzzle() -> void:
 
 
 func _build_course() -> void:
-	# Climb: push the crate against the wall, jump on it, then on the wall
 	_add_crate(Vector3(72.0, 0.52, 0.0))
 	_add_box(Vector3(80.0, 1.0, 0.0), Vector3(2.0, 2.0, 2.0), Color(0.28, 0.27, 0.3))
 
-	# Moving platform over the big pit
 	mover = AnimatableBody3D.new()
 	mover.position = Vector3(96.0, -0.25, 0.0)
 	var mmesh := MeshInstance3D.new()
@@ -355,6 +497,10 @@ func _in_pit(x: float) -> bool:
 func _build_decor() -> void:
 	for x in [4.0, 17.0, 36.0, 62.0, 75.0, 94.0, 104.0]:
 		_add_lamp(x)
+	for i in range(lamp_xs.size() - 1):
+		var xa: float = lamp_xs[i]
+		var xb: float = lamp_xs[i + 1]
+		_add_wire(Vector3(xa + 0.6, 3.4, -1.4), Vector3(xb, 3.4, -1.4), 0.8)
 
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 5
@@ -368,6 +514,70 @@ func _build_decor() -> void:
 		var z := rng.randf_range(0.2, 1.7)
 		if not _in_pit(x):
 			_add_puddle(Vector3(x, 0.006, z))
+
+	# Cold light shafts through the fog
+	for x in [18.0, 46.0, 72.0]:
+		var sp := SpotLight3D.new()
+		sp.position = Vector3(x, 9.0, -1.0)
+		sp.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
+		sp.spot_range = 16.0
+		sp.spot_angle = 24.0
+		sp.light_energy = 5.0
+		sp.light_color = Color(0.7, 0.8, 1.0)
+		sp.light_volumetric_fog_energy = 3.0
+		add_child(sp)
+
+
+func _build_foreground() -> void:
+	# Dark silhouettes close to the camera (blurred by depth of field)
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.008, 0.008, 0.01)
+	mat.roughness = 1.0
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 31
+	var xs: Array = []
+	var x := -8.0
+	while x < 112.0:
+		xs.append(x)
+		x += rng.randf_range(14.0, 24.0)
+	for px in xs:
+		var pole := MeshInstance3D.new()
+		var pb := BoxMesh.new()
+		pb.size = Vector3(0.35, 14.0, 0.35)
+		pole.mesh = pb
+		pole.material_override = mat
+		pole.position = Vector3(px, 6.0, 6.2)
+		add_child(pole)
+		var arm := MeshInstance3D.new()
+		var ab := BoxMesh.new()
+		ab.size = Vector3(3.0, 0.18, 0.18)
+		arm.mesh = ab
+		arm.material_override = mat
+		arm.position = Vector3(px, 8.5, 6.2)
+		add_child(arm)
+	for i in range(xs.size() - 1):
+		var xa: float = xs[i]
+		var xb: float = xs[i + 1]
+		_add_wire(Vector3(xa + 1.3, 8.5, 6.2), Vector3(xb - 1.3, 8.5, 6.2), 1.2)
+		_add_wire(Vector3(xa - 1.3, 8.5, 6.2), Vector3(xb + 1.3, 8.5, 6.2), 1.0)
+
+
+func _add_wire(a: Vector3, b: Vector3, sag: float) -> void:
+	var im := ImmediateMesh.new()
+	im.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
+	for i in range(0, 17):
+		var t := float(i) / 16.0
+		var p := a.lerp(b, t)
+		p.y -= sag * 4.0 * t * (1.0 - t)
+		im.surface_add_vertex(p)
+	im.surface_end()
+	var mi := MeshInstance3D.new()
+	mi.mesh = im
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = Color(0.015, 0.015, 0.02)
+	mi.material_override = mat
+	add_child(mi)
 
 
 func _add_lamp(x: float) -> void:
@@ -413,6 +623,7 @@ func _add_lamp(x: float) -> void:
 	add_child(l)
 	lamp_lights.append(l)
 	lamp_base.append(l.light_energy)
+	lamp_xs.append(x)
 
 
 func _add_barrel(pos: Vector3) -> void:
@@ -494,7 +705,6 @@ func _build_overlay() -> void:
 	rect.material = sm
 	vl.add_child(rect)
 
-	# Death / ending fade
 	var layer := CanvasLayer.new()
 	layer.layer = 20
 	add_child(layer)
@@ -515,19 +725,41 @@ func _build_overlay() -> void:
 	msg_label.modulate.a = 0.0
 	layer.add_child(msg_label)
 
+	if S.show_fps:
+		fps_label = Label.new()
+		fps_label.position = Vector2(24, 16)
+		fps_label.add_theme_font_size_override("font_size", 28)
+		fps_label.modulate = Color(1, 1, 1, 0.7)
+		layer.add_child(fps_label)
+
+
+func _on_footstep(strength: float) -> void:
+	if audio != null and not dead:
+		audio.step(strength)
+
 
 func _on_dog_alerted() -> void:
 	if audio != null:
 		audio.bark()
 
 
-func _on_caught() -> void:
+func _on_caught(use_ragdoll := true) -> void:
 	if dead or finished:
 		return
 	dead = true
+	if use_ragdoll:
+		var push := 1.0
+		var best := 1000000.0
+		for d in dogs:
+			var dist := absf(d.global_position.x - player.global_position.x)
+			if dist < best:
+				best = dist
+				push = signf(player.global_position.x - d.global_position.x)
+		player.die(push)
 	player.set_physics_process(false)
 	msg_label.text = "YOU DIED"
 	msg_label.add_theme_color_override("font_color", Color(0.7, 0.1, 0.1))
+	await get_tree().create_timer(1.2 if use_ragdoll else 0.1).timeout
 	var tw := create_tween()
 	tw.tween_property(fade, "modulate:a", 1.0, 0.5)
 	tw.parallel().tween_property(msg_label, "modulate:a", 1.0, 0.8)
@@ -590,15 +822,14 @@ func _physics_process(delta: float) -> void:
 			if player.position.x >= cx and cx > checkpoint.x:
 				checkpoint = Vector3(cx, 0.1, 0.0)
 		if player.position.y < -8.0:
-			_on_caught()
+			_on_caught(false)
 
 
 func _process(delta: float) -> void:
 	if player != null and cam != null:
-		var target := Vector3(player.position.x, player.position.y + 2.5, 12.0)
+		var target := Vector3(player.position.x, player.position.y + 2.5, 9.0)
 		cam.position = cam.position.lerp(target, clampf(delta * 4.0, 0.0, 1.0))
 
-	# Street lamps: even ones hum, odd ones stutter
 	flick_t += delta
 	for i in lamp_lights.size():
 		var l: OmniLight3D = lamp_lights[i]
@@ -608,3 +839,9 @@ func _process(delta: float) -> void:
 		else:
 			var n := sin(flick_t * 23.0 + i * 5.0) * sin(flick_t * 3.7 + i)
 			l.light_energy = base * (0.1 if n > 0.7 else 1.0)
+
+	if fps_label != null:
+		fps_timer -= delta
+		if fps_timer <= 0.0:
+			fps_timer = 0.5
+			fps_label.text = "FPS %d" % Engine.get_frames_per_second()
