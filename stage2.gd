@@ -29,12 +29,13 @@ func _ready() -> void:
     _environment()
     _background()
     _course()
+    _corridor_lighting()
 
     player = CharacterBody3D.new()
     player.set_script(load("res://player.gd"))
     player.position = checkpoint
     add_child(player)
-    _make_silhouette(player.visual)
+    _add_player_fill_light()
 
     cam = Camera3D.new()
     cam.projection = Camera3D.PROJECTION_ORTHOGONAL
@@ -73,6 +74,42 @@ func _ready() -> void:
     add_child(weather)
 
     _interface()
+
+
+func _add_player_fill_light() -> void:
+    var light := OmniLight3D.new()
+    light.position = Vector3(0, 1.5, 2.0)
+    light.light_color = Color(0.72, 0.78, 0.88)
+    light.light_energy = 1.25
+    light.omni_range = 7.5
+    light.shadow_enabled = false
+    player.add_child(light)
+
+
+func _corridor_lighting() -> void:
+    for x in [0.0, 12.0, 27.0, 40.0, 57.0, 72.0]:
+        var light := OmniLight3D.new()
+        light.position = Vector3(x, 3.8, -0.2)
+        light.light_color = Color(0.88, 0.76, 0.58)
+        light.light_energy = 1.15
+        light.omni_range = 8.5
+        light.shadow_enabled = false
+        add_child(light)
+
+        var bulb := MeshInstance3D.new()
+        var mesh := SphereMesh.new()
+        mesh.radius = 0.11
+        mesh.height = 0.22
+        bulb.mesh = mesh
+
+        var material := StandardMaterial3D.new()
+        material.albedo_color = Color(1.0, 0.78, 0.48)
+        material.emission_enabled = true
+        material.emission = Color(1.0, 0.65, 0.32)
+        material.emission_energy_multiplier = 2.0
+        bulb.material_override = material
+        bulb.position = light.position
+        add_child(bulb)
 
 
 func _mat(c: Color, emission := false) -> StandardMaterial3D:
@@ -117,11 +154,11 @@ func _environment() -> void:
     env.background_mode = Environment.BG_COLOR
     env.background_color = Color(0.012, 0.016, 0.025)
     env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-    env.ambient_light_color = Color(0.28, 0.31, 0.4)
-    env.ambient_light_energy = 0.55
+    env.ambient_light_color = Color(0.42, 0.44, 0.52)
+    env.ambient_light_energy = 0.85
     env.fog_enabled = true
     env.fog_light_color = Color(0.035, 0.045, 0.065)
-    env.fog_density = 0.012
+    env.fog_density = 0.006
     env.glow_enabled = true
     env.glow_intensity = 0.45
     env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
@@ -132,8 +169,8 @@ func _environment() -> void:
 
     sun = DirectionalLight3D.new()
     sun.rotation_degrees = Vector3(-35, -25, 0)
-    sun.light_color = Color(0.55, 0.62, 0.78)
-    sun.light_energy = 0.65
+    sun.light_color = Color(0.65, 0.70, 0.82)
+    sun.light_energy = 0.90
     sun.shadow_enabled = true
     add_child(sun)
 
