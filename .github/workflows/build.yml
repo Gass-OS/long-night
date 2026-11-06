@@ -56,6 +56,13 @@ jobs:
           EOF
           done
 
+      - name: Generate 1980 story narration
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y espeak-ng
+          mkdir -p assets/audio
+          espeak-ng -v en-us+m3 -s 126 -p 30 -a 165 -w assets/audio/intro_narration.wav "I still remember Kasserine in 1980. A quiet city beneath the mountains. A place where everyone knew their neighbours. But when the lights went out, strange things began happening after midnight. People disappeared. Doors were left open. And the old streets fell silent. Nobody believed the warnings. Until that night..."
+
       - name: Import project
         run: godot --headless --path . --import || true
 
