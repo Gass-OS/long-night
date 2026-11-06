@@ -1,6 +1,7 @@
 extends CharacterBody3D
 
 signal caught
+signal alerted
 
 const PATROL_SPEED := 1.4
 const CHASE_SPEED := 5.0
@@ -38,7 +39,9 @@ func _mat(color: Color, glow := false) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
 	m.albedo_color = color
 	if glow:
-		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.emission_enabled = true
+		m.emission = color
+		m.emission_energy_multiplier = 5.0
 	return m
 
 
@@ -100,6 +103,8 @@ func _physics_process(delta: float) -> void:
 	var hear := 1.0 if crouched else 2.2
 	var sees := absf(dy) < 2.0 and ((signf(dx) == facing and absf(dx) < sight) or absf(dx) < hear)
 	if ignore_timer <= 0.0 and sees:
+		if not chasing:
+			alerted.emit()
 		chasing = true
 	if chasing and absf(dx) > 14.0:
 		chasing = false

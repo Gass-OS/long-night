@@ -1,25 +1,54 @@
 extends CanvasLayer
 
+
+class Pad extends Control:
+	var pressed := {}
+
+	func layout() -> Array:
+		var sz := get_viewport_rect().size
+		var lc := Vector2(200.0, sz.y - 135.0)
+		var rc := Vector2(sz.x - 200.0, sz.y - 205.0)
+		return [
+			{"id": "left", "pos": lc + Vector2(-84, 0), "r": 74.0, "label": "<", "cap": "", "col": Color(1, 1, 1)},
+			{"id": "right", "pos": lc + Vector2(84, 0), "r": 74.0, "label": ">", "cap": "", "col": Color(1, 1, 1)},
+			{"id": "jump", "pos": rc + Vector2(0, 104), "r": 78.0, "label": "A", "cap": "JUMP", "col": Color(0.3, 0.85, 0.4)},
+			{"id": "push", "pos": rc + Vector2(-108, -8), "r": 70.0, "label": "X", "cap": "PUSH", "col": Color(0.3, 0.55, 1.0)},
+			{"id": "down", "pos": rc + Vector2(108, -8), "r": 70.0, "label": "B", "cap": "DOWN", "col": Color(0.95, 0.3, 0.3)},
+		]
+
+	func _draw() -> void:
+		var font := ThemeDB.fallback_font
+		for b in layout():
+			var p: Vector2 = b["pos"]
+			var r: float = b["r"]
+			var col: Color = b["col"]
+			var down: bool = pressed.get(b["id"], false)
+			draw_circle(p, r, Color(col.r, col.g, col.b, 0.5 if down else 0.16))
+			draw_arc(p, r, 0.0, TAU, 48, Color(col.r, col.g, col.b, 0.9 if down else 0.5), 4.0, true)
+			var label: String = b["label"]
+			var cap: String = b["cap"]
+			var txt := Color(1, 1, 1, 0.95 if down else 0.6)
+			if cap == "":
+				draw_string(font, p + Vector2(-r, 22), label, HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, 64, txt)
+			else:
+				draw_string(font, p + Vector2(-r, 10), label, HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, 52, txt)
+				draw_string(font, p + Vector2(-r, 46), cap, HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, 22, txt)
+
+
 var player
 var touches := {}
+var pad: Pad
 var pause_panel: Control
-
-# [label, from, to] zones as fractions of the screen width
-var zones := [
-	["<", 0.0, 0.15],
-	[">", 0.15, 0.30],
-	["DOWN", 0.56, 0.70],
-	["PUSH", 0.70, 0.85],
-	["JUMP", 0.85, 1.0],
-]
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	layer = 10
 	get_tree().set_quit_on_go_back(false)
-	for z in zones:
-		_hint(z[0], z[1], z[2])
+	pad = Pad.new()
+	pad.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(pad)
 	_build_pause_button()
 	_build_pause_panel()
 
@@ -50,44 +79,27 @@ func _update_touch() -> void:
 	if player == null:
 		return
 	var size := get_viewport().get_visible_rect().size
-	var l := false
-	var r := false
-	var d := false
-	var pu := false
-	var j := false
+	var specs: Array = pad.layout()
+	var down := {}
 	for p in touches.values():
 		if p.y < size.y * 0.16:
 			continue  # top strip is for the pause button
-		var fx: float = p.x / size.x
-		if fx < 0.15:
-			l = true
-		elif fx < 0.30:
-			r = true
-		elif fx >= 0.85:
-			j = true
-		elif fx >= 0.70:
-			pu = true
-		elif fx >= 0.56:
-			d = true
-	player.touch_left = l
-	player.touch_right = r
-	player.touch_down = d
-	player.touch_push = pu
-	player.touch_jump = j
-
-
-func _hint(text: String, a_left: float, a_right: float) -> void:
-	var lb := Label.new()
-	lb.text = text
-	lb.anchor_left = a_left
-	lb.anchor_right = a_right
-	lb.anchor_top = 0.6
-	lb.anchor_bottom = 1.0
-	lb.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lb.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	lb.add_theme_font_size_override("font_size", 40)
-	lb.modulate = Color(1, 1, 1, 0.3)
-	add_child(lb)
+		var best := ""
+		var best_d := 1000000.0
+		for b in specs:
+			var d: float = (b["pos"] as Vector2).distance_to(p) / float(b["r"])
+			if d < 1.35 and d < best_d:
+				best = b["id"]
+				best_d = d
+		if best != "":
+			down[best] = true
+	player.touch_left = down.get("left", false)
+	player.touch_right = down.get("right", false)
+	player.touch_jump = down.get("jump", false)
+	player.touch_push = down.get("push", false)
+	player.touch_down = down.get("down", false)
+	pad.pressed = down
+	pad.queue_redraw()
 
 
 func _build_pause_button() -> void:
