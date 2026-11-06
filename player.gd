@@ -102,6 +102,7 @@ func _physics_process(delta: float) -> void:
 		velocity.y = JUMP
 
 	move_and_slide()
+	_push_bodies(dir * SPEED)
 	position.z = 0.0
 	_animate(delta, dir)
 
@@ -135,3 +136,12 @@ func _animate(delta: float, dir: float) -> void:
 	leg_r.rotation.x = lerpf(leg_r.rotation.x, lr, t)
 	arm_l.rotation.x = lerpf(arm_l.rotation.x, al, t)
 	arm_r.rotation.x = lerpf(arm_r.rotation.x, ar, t)
+
+
+func _push_bodies(move_x: float) -> void:
+	for i in get_slide_collision_count():
+		var c := get_slide_collision(i)
+		var b := c.get_collider() as RigidBody3D
+		if b != null and absf(c.get_normal().x) > 0.5:
+			b.sleeping = false
+			b.linear_velocity.x = move_x * 0.6
