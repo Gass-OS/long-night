@@ -203,3 +203,11 @@ func _animate(delta: float, dir: float) -> void:
 	leg_r.rotation.x = lerpf(leg_r.rotation.x, lr, t)
 	arm_l.rotation.x = lerpf(arm_l.rotation.x, al, t)
 	arm_r.rotation.x = lerpf(arm_r.rotation.x, ar, t)
+
+
+func respawn(pos: Vector3) -> void:
+	position = pos
+	velocity = Vector3.ZERO
+	grabbed = null
+	if crouching:
+		_set_crouch(false)

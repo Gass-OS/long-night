@@ -11,6 +11,14 @@ var plate_mat: StandardMaterial3D
 var plate_light: OmniLight3D
 var door: AnimatableBody3D
 
+var dogs: Array = []
+var checkpoint := Vector3(0.0, 0.1, 0.0)
+var checkpoint_xs: Array[float] = [28.5, 38.5]
+var dead := false
+var finished := false
+var fade: ColorRect
+var msg_label: Label
+
 
 func _ready() -> void:
 	_setup_environment()
@@ -19,7 +27,7 @@ func _ready() -> void:
 
 	player = CharacterBody3D.new()
 	player.set_script(load("res://player.gd"))
-	player.position = Vector3(0, 0.1, 0)
+	player.position = checkpoint
 	add_child(player)
 
 	cam = Camera3D.new()
@@ -27,10 +35,16 @@ func _ready() -> void:
 	add_child(cam)
 	cam.make_current()
 
+	_add_dog(45.0, 43.0, 48.0)
+	_add_dog(55.0, 52.5, 56.5)
+	_build_exit()
+
 	var hud = CanvasLayer.new()
 	hud.set_script(load("res://hud.gd"))
 	hud.player = player
 	add_child(hud)
+
+	_build_overlay()
 
 
 func _setup_environment() -> void:
@@ -83,6 +97,9 @@ func _build_level() -> void:
 	_add_box(Vector3(12.5, 0.4, 0), Vector3(1.5, 0.8, 1.5), Color(0.45, 0.3, 0.2))
 	# Low vent after the door: crouch (DOWN) to crawl under it
 	_add_box(Vector3(34, 1.5, 0), Vector3(6, 1.0, 4), Color(0.2, 0.2, 0.24))
+	# Safe platforms in the dog zone (dogs cannot reach you up there)
+	_add_box(Vector3(40.5, 0.5, 0), Vector3(2, 1, 2), Color(0.4, 0.34, 0.28))
+	_add_box(Vector3(50.5, 0.5, 0), Vector3(2, 1, 2), Color(0.4, 0.34, 0.28))
 	# Background buildings (no collision) for depth
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 7
@@ -179,20 +196,121 @@ func _build_puzzle() -> void:
 	add_child(lamp)
 
 
-func _physics_process(delta: float) -> void:
-	if plate == null or door == null:
+func _add_dog(x: float, left_x: float, right_x: float) -> void:
+	var d = CharacterBody3D.new()
+	d.set_script(load("res://dog.gd"))
+	d.target = player
+	d.left_x = left_x
+	d.right_x = right_x
+	d.position = Vector3(x, 0.05, 0.0)
+	d.caught.connect(_on_caught)
+	add_child(d)
+	dogs.append(d)
+
+
+func _build_exit() -> void:
+	var a := Area3D.new()
+	a.position = Vector3(58.8, 0.0, 0.0)
+	var col := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = Vector3(1.5, 3.0, 3.0)
+	col.shape = shape
+	col.position.y = 1.5
+	a.add_child(col)
+	add_child(a)
+	a.body_entered.connect(_on_exit)
+
+	var light := OmniLight3D.new()
+	light.position = Vector3(58.0, 2.2, 1.0)
+	light.omni_range = 9.0
+	light.light_energy = 2.0
+	light.light_color = Color(0.95, 0.85, 0.6)
+	add_child(light)
+
+
+func _build_overlay() -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = 20
+	add_child(layer)
+
+	fade = ColorRect.new()
+	fade.color = Color(0.02, 0.0, 0.0, 1.0)
+	fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fade.modulate.a = 0.0
+	layer.add_child(fade)
+
+	msg_label = Label.new()
+	msg_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	msg_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	msg_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	msg_label.add_theme_font_size_override("font_size", 90)
+	msg_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	msg_label.modulate.a = 0.0
+	layer.add_child(msg_label)
+
+
+func _on_caught() -> void:
+	if dead or finished:
 		return
-	var pressed := false
-	for b in plate.get_overlapping_bodies():
-		if b is CharacterBody3D or b is RigidBody3D:
-			pressed = true
-			break
-	var c := Color(0.1, 0.8, 0.3) if pressed else Color(0.7, 0.1, 0.1)
-	plate_mat.albedo_color = c
-	plate_mat.emission = c
-	plate_light.light_color = c
-	var target := DOOR_OPEN_Y if pressed else DOOR_CLOSED_Y
-	door.position.y = move_toward(door.position.y, target, 4.0 * delta)
+	dead = true
+	player.set_physics_process(false)
+	msg_label.text = "YOU DIED"
+	msg_label.add_theme_color_override("font_color", Color(0.7, 0.1, 0.1))
+	var tw := create_tween()
+	tw.tween_property(fade, "modulate:a", 1.0, 0.5)
+	tw.parallel().tween_property(msg_label, "modulate:a", 1.0, 0.8)
+	await tw.finished
+	await get_tree().create_timer(0.8).timeout
+
+	player.respawn(checkpoint)
+	for d in dogs:
+		d.reset_state()
+	player.set_physics_process(true)
+	dead = false
+
+	var tw2 := create_tween()
+	tw2.tween_property(fade, "modulate:a", 0.0, 0.6)
+	tw2.parallel().tween_property(msg_label, "modulate:a", 0.0, 0.4)
+
+
+func _on_exit(body: Node3D) -> void:
+	if body != player or finished or dead:
+		return
+	finished = true
+	player.set_physics_process(false)
+	msg_label.text = "TO BE CONTINUED"
+	msg_label.add_theme_color_override("font_color", Color(0.85, 0.82, 0.78))
+	var tw := create_tween()
+	tw.tween_property(fade, "modulate:a", 1.0, 1.0)
+	tw.parallel().tween_property(msg_label, "modulate:a", 1.0, 1.4)
+	await tw.finished
+	await get_tree().create_timer(2.5).timeout
+	get_tree().change_scene_to_file("res://menu.tscn")
+
+
+func _physics_process(delta: float) -> void:
+	if plate != null and door != null:
+		var pressed := false
+		for b in plate.get_overlapping_bodies():
+			if b is CharacterBody3D or b is RigidBody3D:
+				if b is CharacterBody3D and b != player:
+					continue
+				pressed = true
+				break
+		var c := Color(0.1, 0.8, 0.3) if pressed else Color(0.7, 0.1, 0.1)
+		plate_mat.albedo_color = c
+		plate_mat.emission = c
+		plate_light.light_color = c
+		var target := DOOR_OPEN_Y if pressed else DOOR_CLOSED_Y
+		door.position.y = move_toward(door.position.y, target, 4.0 * delta)
+
+	if player != null and not dead and not finished:
+		for cx in checkpoint_xs:
+			if player.position.x >= cx and cx > checkpoint.x:
+				checkpoint = Vector3(cx, 0.1, 0.0)
+		if player.position.y < -8.0:
+			_on_caught()
 
 
 func _process(delta: float) -> void:
