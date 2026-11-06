@@ -30,6 +30,9 @@ var phase := 0.0
 var crouching := false
 var facing := 1.0
 var grabbed: RigidBody3D = null
+var model_animation: AnimationPlayer
+var model_instance: Node3D
+var using_procedural := false
 
 
 func _ready() -> void:
@@ -68,30 +71,74 @@ func _limb(pos: Vector3, size: Vector3, color: Color) -> Node3D:
 	return pivot
 
 
+func _find_model_animation(node: Node) -> AnimationPlayer:
+        if node is AnimationPlayer:
+                return node as AnimationPlayer
+        for child in node.get_children():
+                var found := _find_model_animation(child)
+                if found != null:
+                        return found
+        return null
+
+
+func _play_model_animation(wanted: String, speed: float = 1.0) -> void:
+        if model_animation == null:
+                return
+
+        var chosen := ""
+        for candidate in model_animation.get_animation_list():
+                var lower := candidate.to_lower()
+                if lower == wanted.to_lower() or lower.ends_with("/" + wanted.to_lower()):
+                        chosen = candidate
+                        break
+
+        if chosen == "":
+                return
+
+        model_animation.speed_scale = speed
+        if String(model_animation.current_animation) != chosen:
+                model_animation.play(chosen, 0.18)
+
+
 func _build_body() -> void:
-	visual = Node3D.new()
-	visual.rotation.y = deg_to_rad(90.0)
-	add_child(visual)
+        visual = Node3D.new()
+        add_child(visual)
 
-	_box(visual, Vector3(0.4, 0.5, 0.22), SHIRT, Vector3(0, 0.9, 0))
+        var packed := load("res://assets/models/Student.glb") as PackedScene
+        if packed != null:
+                model_instance = packed.instantiate() as Node3D
+                if model_instance != null:
+                        visual.add_child(model_instance)
+                        model_animation = _find_model_animation(model_instance)
+                        if model_animation != null:
+                                _play_model_animation("Idle")
+                                return
+                        model_instance.queue_free()
+                        model_instance = null
 
-	var head := MeshInstance3D.new()
-	var sm := SphereMesh.new()
-	sm.radius = 0.17
-	sm.height = 0.34
-	head.mesh = sm
-	head.material_override = _mat(SKIN)
-	head.position = Vector3(0, 1.32, 0)
-	visual.add_child(head)
+        # Safe original procedural fallback.
+        using_procedural = true
+        visual.rotation.y = deg_to_rad(90.0)
+        push_warning("Student.glb unavailable or has no AnimationPlayer; using procedural player")
 
-	arm_l = _limb(Vector3(-0.27, 1.12, 0), Vector3(0.12, 0.5, 0.12), SHIRT)
-	arm_r = _limb(Vector3(0.27, 1.12, 0), Vector3(0.12, 0.5, 0.12), SHIRT)
-	_box(arm_l, Vector3(0.13, 0.13, 0.13), SKIN, Vector3(0, -0.52, 0))
-	_box(arm_r, Vector3(0.13, 0.13, 0.13), SKIN, Vector3(0, -0.52, 0))
+        _box(visual, Vector3(0.4, 0.5, 0.22), SHIRT, Vector3(0, 0.9, 0))
 
-	leg_l = _limb(Vector3(-0.1, 0.65, 0), Vector3(0.17, 0.65, 0.17), PANTS)
-	leg_r = _limb(Vector3(0.1, 0.65, 0), Vector3(0.17, 0.65, 0.17), PANTS)
+        var head := MeshInstance3D.new()
+        var sm := SphereMesh.new()
+        sm.radius = 0.17
+        sm.height = 0.34
+        head.mesh = sm
+        head.material_override = _mat(SKIN)
+        head.position = Vector3(0, 1.32, 0)
+        visual.add_child(head)
 
+        arm_l = _limb(Vector3(-0.27, 1.12, 0), Vector3(0.12, 0.5, 0.12), SHIRT)
+        arm_r = _limb(Vector3(0.27, 1.12, 0), Vector3(0.12, 0.5, 0.12), SHIRT)
+        _box(arm_l, Vector3(0.13, 0.13, 0.13), SKIN, Vector3(0, -0.52, 0))
+        _box(arm_r, Vector3(0.13, 0.13, 0.13), SKIN, Vector3(0, -0.52, 0))
+
+        leg_l = _limb(Vector3(-0.1, 0.65, 0), Vector3(0.17, 0.65, 0.17), PANTS)
+        leg_r = _limb(Vector3(0.1, 0.65, 0), Vector3(0.17, 0.65, 0.17), PANTS)
 
 func _set_crouch(v: bool) -> void:
 	crouching = v
@@ -164,46 +211,40 @@ func _physics_process(delta: float) -> void:
 
 
 func _animate(delta: float, dir: float) -> void:
-	var target_yaw := deg_to_rad(90.0 * facing)
-	visual.rotation.y = lerp_angle(visual.rotation.y, target_yaw, clampf(delta * 12.0, 0.0, 1.0))
-	var sy := 0.62 if crouching else 1.0
-	visual.scale.y = lerpf(visual.scale.y, sy, clampf(delta * 14.0, 0.0, 1.0))
+        if using_procedural:
+                visual.rotation.y = deg_to_rad(90.0 * facing)
+                phase += delta * (9.0 if dir != 0.0 else 2.0)
+                if arm_l != null and arm_r != null and leg_l != null and leg_r != null:
+                        var swing := sin(phase) * 0.65 if dir != 0.0 else 0.0
+                        arm_l.rotation.x = swing
+                        arm_r.rotation.x = -swing
+                        leg_l.rotation.x = -swing
+                        leg_r.rotation.x = swing
+                return
 
-	var ll := 0.0
-	var lr := 0.0
-	var al := 0.0
-	var ar := 0.0
-	if not is_on_floor():
-		ll = -0.7
-		lr = 0.5
-		al = -2.4
-		ar = -2.4
-	elif grabbed != null:
-		al = -1.5
-		ar = -1.5
-		if dir != 0.0:
-			phase += delta * 6.0
-			var sg := sin(phase)
-			ll = sg * 0.5
-			lr = -sg * 0.5
-	elif dir != 0.0:
-		var rate := 6.0 if crouching else 10.0
-		var amp := 0.5 if crouching else 0.8
-		phase += delta * rate
-		var sw := sin(phase)
-		ll = sw * amp
-		lr = -sw * amp
-		al = -sw * amp * 0.9
-		ar = sw * amp * 0.9
-	else:
-		phase = 0.0
+        var target_yaw := deg_to_rad(-90.0 * facing)
+        visual.rotation.y = lerp_angle(
+                visual.rotation.y, target_yaw,
+                clampf(delta * 12.0, 0.0, 1.0)
+        )
 
-	var t := clampf(delta * 18.0, 0.0, 1.0)
-	leg_l.rotation.x = lerpf(leg_l.rotation.x, ll, t)
-	leg_r.rotation.x = lerpf(leg_r.rotation.x, lr, t)
-	arm_l.rotation.x = lerpf(arm_l.rotation.x, al, t)
-	arm_r.rotation.x = lerpf(arm_r.rotation.x, ar, t)
+        var target_scale_y := 0.76 if crouching else 1.0
+        visual.scale.y = lerpf(
+                visual.scale.y, target_scale_y,
+                clampf(delta * 10.0, 0.0, 1.0)
+        )
 
+        if not is_on_floor():
+                _play_model_animation("Special")
+        elif grabbed != null:
+                _play_model_animation("Walk", 0.55 if dir != 0.0 else 1.0)
+        elif dir != 0.0:
+                if crouching:
+                        _play_model_animation("Walk", 0.55)
+                else:
+                        _play_model_animation("Run")
+        else:
+                _play_model_animation("Idle")
 
 func respawn(pos: Vector3) -> void:
 	position = pos
