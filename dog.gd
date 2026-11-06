@@ -100,21 +100,9 @@ func _build_body() -> void:
         visual = Node3D.new()
         add_child(visual)
 
-        var packed := load("res://assets/models/Dog.glb") as PackedScene
-        if packed != null:
-                model_instance = packed.instantiate() as Node3D
-                if model_instance != null:
-                        visual.add_child(model_instance)
-                        model_animation = _find_model_animation(model_instance)
-                        if model_animation != null:
-                                _play_model_animation("idle")
-                                return
-                        model_instance.queue_free()
-                        model_instance = null
-
-        # Safe original procedural fallback.
+        # Original procedural character restored.
         using_procedural = true
-        push_warning("Dog.glb unavailable or has no AnimationPlayer; using procedural dog")
+        # Procedural character is the intended model.
 
         var fur := Color(0.1, 0.1, 0.11)
         _box(visual, Vector3(0.85, 0.32, 0.3), fur, Vector3(0, 0.5, 0))

@@ -104,22 +104,10 @@ func _build_body() -> void:
         visual = Node3D.new()
         add_child(visual)
 
-        var packed := load("res://assets/models/Student.glb") as PackedScene
-        if packed != null:
-                model_instance = packed.instantiate() as Node3D
-                if model_instance != null:
-                        visual.add_child(model_instance)
-                        model_animation = _find_model_animation(model_instance)
-                        if model_animation != null:
-                                _play_model_animation("Idle")
-                                return
-                        model_instance.queue_free()
-                        model_instance = null
-
-        # Safe original procedural fallback.
+        # Original procedural character restored.
         using_procedural = true
         visual.rotation.y = deg_to_rad(90.0)
-        push_warning("Student.glb unavailable or has no AnimationPlayer; using procedural player")
+        # Procedural character is the intended model.
 
         _box(visual, Vector3(0.4, 0.5, 0.22), SHIRT, Vector3(0, 0.9, 0))
 
