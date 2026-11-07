@@ -479,22 +479,22 @@ func _setup_environment() -> void:
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color(0.28, 0.3, 0.4)
-	env.ambient_light_energy = 0.45
+	env.ambient_light_energy = 0.8
 	env.fog_enabled = true
 	env.fog_light_color = Color(0.16, 0.12, 0.09)
-	env.fog_density = 0.02
-	env.volumetric_fog_enabled = true
+	env.fog_density = 0.008
+	env.volumetric_fog_enabled = false
 	env.volumetric_fog_density = 0.05
 	env.volumetric_fog_albedo = Color(0.75, 0.6, 0.45)
 	env.volumetric_fog_emission = Color(0.02, 0.012, 0.006)
 	env.volumetric_fog_length = 48.0
 	env.volumetric_fog_anisotropy = 0.6
 	env.volumetric_fog_ambient_inject = 0.3
-	env.ssao_enabled = true
+	env.ssao_enabled = false
 	env.ssao_radius = 1.2
 	env.ssao_intensity = 2.2
 	env.glow_enabled = true
-	env.glow_intensity = 1.1
+	env.glow_intensity = 0.65
 	env.glow_bloom = 0.18
 	env.glow_hdr_threshold = 0.9
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
@@ -507,7 +507,7 @@ func _setup_environment() -> void:
 
 	sun = DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-50.0, -25.0, 0.0)
-	sun.light_energy = 0.5
+	sun.light_energy = 0.85
 	sun.light_color = Color(0.6, 0.7, 1.0)
 	sun.shadow_enabled = true
 	sun.directional_shadow_max_distance = 40.0
@@ -524,10 +524,10 @@ func _setup_environment() -> void:
 
 	cam = Camera3D.new()
 	cam_attrs = CameraAttributesPractical.new()
-	cam_attrs.dof_blur_far_enabled = true
+	cam_attrs.dof_blur_far_enabled = false
 	cam_attrs.dof_blur_far_distance = 13.0
 	cam_attrs.dof_blur_far_transition = 12.0
-	cam_attrs.dof_blur_near_enabled = true
+	cam_attrs.dof_blur_near_enabled = false
 	cam_attrs.dof_blur_near_distance = 5.0
 	cam_attrs.dof_blur_near_transition = 3.0
 	cam_attrs.dof_blur_amount = 0.1
@@ -540,18 +540,18 @@ func _setup_environment() -> void:
 
 
 func _apply_quality() -> void:
-	var q: int = S.quality
+	var q: int = clampi(int(S.quality), 0, 2)
 	var vp := get_viewport()
 	var msaa := [Viewport.MSAA_DISABLED, Viewport.MSAA_2X, Viewport.MSAA_4X]
 	var scale3d := [0.7, 0.85, 1.0]
 	vp.msaa_3d = msaa[q]
 	vp.scaling_3d_scale = scale3d[q]
-	env.volumetric_fog_enabled = q >= 1
-	env.ssao_enabled = q >= 2
+	env.volumetric_fog_enabled = false
+	env.ssao_enabled = false
 	env.glow_enabled = q >= 1
 	sun.shadow_enabled = q >= 1
-	cam_attrs.dof_blur_far_enabled = q >= 2
-	cam_attrs.dof_blur_near_enabled = q >= 2
+	cam_attrs.dof_blur_far_enabled = false
+	cam_attrs.dof_blur_near_enabled = false
 	if dust != null:
 		dust.amount = [60, 110, 160][q]
 
@@ -1474,15 +1474,22 @@ func _build_overlay() -> void:
 
 
 func _intro_card() -> void:
-	msg_label.text = "STAGE 2\nKASSERINE  -  THE OLD MEDINA"
-	msg_label.add_theme_color_override("font_color", Color(0.95, 0.85, 0.65))
-	var tw := create_tween()
-	tw.tween_property(msg_label, "modulate:a", 1.0, 1.2)
-	tw.tween_interval(2.0)
-	tw.parallel().tween_property(fade, "modulate:a", 0.0, 2.2).set_delay(1.0)
-	tw.tween_property(msg_label, "modulate:a", 0.0, 1.0)
-	await tw.finished
-	_banner("Mission: " + str(_mission(m_idx)[0]), 4.0)
+   fade.modulate.a = 1.0
+   msg_label.modulate.a = 0.0
+   msg_label.text = "STAGE 2
+KASSERINE  -  THE OLD MEDINA"
+   msg_label.add_theme_color_override("font_color", Color(0.95, 0.85, 0.65))
+   var tw := create_tween()
+   tw.tween_property(msg_label, "modulate:a", 1.0, 1.2)
+   tw.parallel().tween_property(fade, "modulate:a", 0.0, 4.0).set_delay(0.4)
+   tw.tween_interval(0.4)
+   tw.tween_property(msg_label, "modulate:a", 0.0, 0.8)
+   await tw.finished
+   if not is_inside_tree():
+      return
+   fade.modulate.a = 0.0
+   msg_label.modulate.a = 0.0
+   _banner("Mission: " + str(_mission(m_idx)[0]), 4.0)
 
 
 func _ui_label(text: String, size: int, pos: Vector2) -> Label:
