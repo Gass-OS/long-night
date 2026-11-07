@@ -23,6 +23,8 @@ renderer/rendering_method="forward_plus"
 renderer/rendering_method.mobile="forward_plus"
 
 [autoload]
+Look3="*res://look3.gd"
+City="*res://city.gd"
 Look2="*res://look2.gd"
 
 Look="*res://look.gd"

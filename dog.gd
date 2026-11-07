@@ -4,7 +4,7 @@ signal caught
 signal alerted
 
 const PATROL_SPEED := 1.4
-const CHASE_SPEED := 5.0
+const CHASE_SPEED := 4.3
 const GRAVITY := 18.0
 const UP_LEN := [0.27, 0.27, 0.28, 0.28]
 const LOW_LEN := [0.27, 0.27, 0.27, 0.27]
@@ -172,9 +172,9 @@ func _physics_process(delta: float) -> void:
 			facing = signf(dx)
 		if dy > 0.9 and absf(dx) < 1.3:
 			above_timer += delta
-			if above_timer > 4.0:
+			if above_timer > 2.5:
 				chasing = false
-				ignore_timer = 4.0
+				ignore_timer = 3.0
 				above_timer = 0.0
 		else:
 			above_timer = 0.0
