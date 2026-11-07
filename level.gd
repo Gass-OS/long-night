@@ -803,8 +803,8 @@ func _on_exit(body: Node3D) -> void:
 	tw.parallel().tween_property(msg_label, "modulate:a", 1.0, 1.4)
 	await tw.finished
 	await get_tree().create_timer(2.5).timeout
-	get_tree().change_scene_to_file("res://menu.tscn")
-
+	if is_inside_tree() and get_tree().current_scene == self:
+		get_tree().change_scene_to_file("res://stage2.tscn")
 
 func _physics_process(delta: float) -> void:
 	if plate != null and door != null:
