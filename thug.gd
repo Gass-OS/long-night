@@ -12,6 +12,7 @@ var target
 var left_x := 0.0
 var right_x := 0.0
 var start_x := 0.0
+var start_y := 0.05
 var facing := 1.0
 var chasing := false
 var ignore_timer := 0.0
@@ -27,6 +28,7 @@ func _ready() -> void:
 	collision_layer = 2
 	collision_mask = 1
 	start_x = position.x
+	start_y = position.y
 	var col := CollisionShape3D.new()
 	var sh := CapsuleShape3D.new()
 	sh.radius = 0.3
@@ -66,7 +68,7 @@ func _recolor(node: Node) -> void:
 
 
 func reset_state() -> void:
-	position = Vector3(start_x, position.y, 0.0)
+	position = Vector3(start_x, start_y + 0.1, 0.0)
 	velocity = Vector3.ZERO
 	chasing = false
 	ignore_timer = 1.5

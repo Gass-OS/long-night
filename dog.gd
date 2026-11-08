@@ -16,6 +16,7 @@ var target
 var left_x := 0.0
 var right_x := 0.0
 var start_x := 0.0
+var start_y := 0.05
 var facing := 1.0
 var chasing := false
 var biting := false
@@ -43,6 +44,7 @@ func _ready() -> void:
 	collision_layer = 2
 	collision_mask = 1
 	start_x = position.x
+	start_y = position.y
 	var col := CollisionShape3D.new()
 	var sh := BoxShape3D.new()
 	sh.size = Vector3(0.9, 0.65, 0.35)
@@ -137,7 +139,7 @@ func _build_body() -> void:
 
 
 func reset_state() -> void:
-	position = Vector3(start_x, 0.05, 0.0)
+	position = Vector3(start_x, start_y + 0.1, 0.0)
 	velocity = Vector3.ZERO
 	chasing = false
 	biting = false
