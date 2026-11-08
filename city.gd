@@ -288,7 +288,7 @@ func _to_wav(samples: PackedFloat32Array, rate: int, loop := false) -> AudioStre
 	return w
 
 
-func _make_coin() -> AudioStreamWAV:
+func _make_coin_sfx() -> AudioStreamWAV:
 	var rate := 22050
 	var n := int(rate * 0.28)
 	var s := PackedFloat32Array()
@@ -386,7 +386,7 @@ func _sfx(key: String) -> void:
 
 
 func _build_audio() -> void:
-	sfx["coin"] = _sfx_player("coin", _make_coin, -9.0)
+	sfx["coin"] = _sfx_player("coin", _make_coin_sfx, -9.0)
 	sfx["buy"] = _sfx_player("buy", _make_buy, -8.0)
 	sfx["gun"] = _sfx_player("gun", _make_gun, -4.0)
 	sfx["swish"] = _sfx_player("swish", _make_swish, -8.0)
