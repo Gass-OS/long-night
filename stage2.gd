@@ -1310,7 +1310,7 @@ func _make_wind() -> AudioStreamWAV:
 	return _to_wav(s, rate, true)
 
 
-func _make_coin_sfx() -> AudioStreamWAV:
+func _make_coin() -> AudioStreamWAV:
 	var rate := 22050
 	var n := int(rate * 0.28)
 	var s := PackedFloat32Array()
@@ -1394,7 +1394,7 @@ func _build_audio() -> void:
 			rp.volume_db = -80.0
 	_sfx_player(_make_oud(), -9.0, true)
 	_sfx_player(_make_wind(), -22.0, true)
-	sfx["coin"] = _sfx_player(_make_coin_sfx(), -9.0)
+	sfx["coin"] = _sfx_player(_make_coin(), -9.0)
 	sfx["buy"] = _sfx_player(_make_buy(), -8.0)
 	sfx["gun"] = _sfx_player(_make_gun(), -4.0)
 	sfx["swish"] = _sfx_player(_make_swish(), -8.0)
