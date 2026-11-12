@@ -23,6 +23,9 @@ renderer/rendering_method="forward_plus"
 renderer/rendering_method.mobile="forward_plus"
 
 [autoload]
+Drone="*res://drone.gd"
+Squad="*res://squad.gd"
+Vitals="*res://vitals.gd"
 Medina="*res://medina.gd"
 Look3="*res://look3.gd"
 City="*res://city.gd"

@@ -2055,6 +2055,8 @@ func _dim_eyes(node: Node) -> void:
 func _on_caught(use_ragdoll := true) -> void:
 	if dead or finished:
 		return
+	if use_ragdoll and player.has_method("absorb_hit") and player.absorb_hit():
+		return
 	dead = true
 	deaths += 1
 	if use_ragdoll:

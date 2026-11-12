@@ -1,5 +1,6 @@
 extends Node3D
 # Procedural skeleton for the boy (about 1.5 m tall). Local forward is +Z.
+# v2: smoother body shape (joint spheres, hands, face, shoes), hurt / slope / wounded poses.
 # Joints: hips, spine, chest, neck, head, shoulders, elbows, hips, knees, ankles.
 
 signal footstep(strength: float)
@@ -31,12 +32,18 @@ var leg_l: Array = []
 var foot: Array = []
 var bone_defs: Array = []
 
+# set from outside (player): damage reaction, floor slope along the facing direction, low health
+var hurt := 0.0
+var slope := 0.0
+var wounded := false
+
 var phase := 0.0
 var gait := 0.0
 var yaw := 0.0
 var blend_crouch := 0.0
 var blend_grab := 0.0
 var blend_air := 0.0
+var blend_wound := 0.0
 var lean := 0.0
 var lean_v := 0.0
 var head_p := 0.0
@@ -62,7 +69,7 @@ func _pivot(parent: Node3D, pos: Vector3) -> Node3D:
 	return p
 
 
-func _capsule(parent: Node3D, radius: float, length: float, color: Color, center: Vector3) -> void:
+func _capsule(parent: Node3D, radius: float, length: float, color: Color, center: Vector3) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	var cm := CapsuleMesh.new()
 	cm.radius = radius
@@ -71,9 +78,10 @@ func _capsule(parent: Node3D, radius: float, length: float, color: Color, center
 	mi.material_override = _mat(color)
 	mi.position = center
 	parent.add_child(mi)
+	return mi
 
 
-func _sphere(parent: Node3D, radius: float, color: Color, center: Vector3, scale_y := 1.0) -> void:
+func _sphere(parent: Node3D, radius: float, color: Color, center: Vector3) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	var sm := SphereMesh.new()
 	sm.radius = radius
@@ -81,11 +89,11 @@ func _sphere(parent: Node3D, radius: float, color: Color, center: Vector3, scale
 	mi.mesh = sm
 	mi.material_override = _mat(color)
 	mi.position = center
-	mi.scale.y = scale_y
 	parent.add_child(mi)
+	return mi
 
 
-func _box(parent: Node3D, size: Vector3, color: Color, center: Vector3) -> void:
+func _box(parent: Node3D, size: Vector3, color: Color, center: Vector3) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	var bm := BoxMesh.new()
 	bm.size = size
@@ -93,6 +101,7 @@ func _box(parent: Node3D, size: Vector3, color: Color, center: Vector3) -> void:
 	mi.material_override = _mat(color)
 	mi.position = center
 	parent.add_child(mi)
+	return mi
 
 
 func _cap_shape(radius: float, height: float) -> CapsuleShape3D:
@@ -102,40 +111,79 @@ func _cap_shape(radius: float, height: float) -> CapsuleShape3D:
 	return c
 
 
+func _box_shape(size: Vector3) -> BoxShape3D:
+	var b := BoxShape3D.new()
+	b.size = size
+	return b
+
+
+func _sphere_shape(radius: float) -> SphereShape3D:
+	var s := SphereShape3D.new()
+	s.radius = radius
+	return s
+
+
 func _def(pivots: Array, parent: int, shape: Shape3D, center: Vector3, mass: float, joint_pivot) -> int:
 	bone_defs.append({"pivots": pivots, "parent": parent, "shape": shape, "center": center, "mass": mass, "joint": joint_pivot})
 	return bone_defs.size() - 1
 
 
 func _ready() -> void:
+	# pelvis
 	hips = _pivot(self, Vector3(0, 0.82, 0))
 	_box(hips, Vector3(0.25, 0.13, 0.15), PANTS, Vector3.ZERO)
+	for sx in [-1.0, 1.0]:
+		_sphere(hips, 0.075, PANTS, Vector3(sx * 0.085, -0.01, 0.0))
+
+	# torso (hoodie)
 	spine = _pivot(hips, Vector3(0, 0.04, 0))
-	_capsule(spine, 0.10, TORSO_LOW + 0.06, SHIRT, Vector3(0, TORSO_LOW * 0.5, 0))
+	_capsule(spine, 0.095, TORSO_LOW + 0.06, SHIRT, Vector3(0, TORSO_LOW * 0.5, 0))
+	_box(spine, Vector3(0.24, 0.05, 0.14), SHIRT, Vector3(0, -0.02, 0))
 	chest = _pivot(spine, Vector3(0, TORSO_LOW, 0))
-	_capsule(chest, 0.115, TORSO_UP + 0.1, SHIRT, Vector3(0, 0.09, 0))
+	_capsule(chest, 0.112, TORSO_UP + 0.12, SHIRT, Vector3(0, 0.09, 0))
+
+	# neck and head
 	neck = _pivot(chest, Vector3(0, TORSO_UP, 0))
 	_capsule(neck, 0.035, 0.1, SKIN, Vector3(0, 0.025, 0))
 	head = _pivot(neck, Vector3(0, 0.05, 0))
-	_sphere(head, 0.1, SKIN, Vector3(0, 0.095, 0))
-	_sphere(head, 0.104, HAIR, Vector3(0, 0.115, -0.012), 0.8)
+	var skull := _sphere(head, 0.1, SKIN, Vector3(0, 0.095, 0))
+	skull.scale = Vector3(0.93, 1.06, 1.0)
+	_sphere(head, 0.062, SKIN, Vector3(0, 0.045, 0.035))
+	_sphere(head, 0.018, SKIN, Vector3(0, 0.088, 0.1))
+	for sx in [-1.0, 1.0]:
+		_sphere(head, 0.02, SKIN, Vector3(sx * 0.093, 0.1, -0.005))
+		_sphere(head, 0.011, Color(0.01, 0.01, 0.012), Vector3(sx * 0.034, 0.108, 0.088))
+		_box(head, Vector3(0.03, 0.006, 0.01), HAIR, Vector3(sx * 0.034, 0.128, 0.09))
+	var hair := _sphere(head, 0.104, HAIR, Vector3(0, 0.118, -0.012))
+	hair.scale = Vector3(1.0, 0.8, 1.0)
+	_box(head, Vector3(0.14, 0.03, 0.05), HAIR, Vector3(0, 0.168, 0.05))
 
 	for side in 2:
 		var sx := -1.0 if side == 0 else 1.0
+		# arm: shoulder, elbow, hand with thumb
 		var au := _pivot(chest, Vector3(sx * 0.155, TORSO_UP - 0.03, 0))
+		_sphere(au, 0.055, SHIRT, Vector3.ZERO)
 		_capsule(au, 0.04, UPPER_ARM, SHIRT, Vector3(0, -UPPER_ARM * 0.5, 0))
 		var al := _pivot(au, Vector3(0, -UPPER_ARM, 0))
-		_capsule(al, 0.034, FORE_ARM, SKIN, Vector3(0, -FORE_ARM * 0.5, 0))
-		_sphere(al, 0.04, SKIN, Vector3(0, -FORE_ARM - 0.015, 0))
+		_sphere(al, 0.037, SKIN, Vector3.ZERO)
+		_capsule(al, 0.033, FORE_ARM, SKIN, Vector3(0, -FORE_ARM * 0.5, 0))
+		var hand := _sphere(al, 0.04, SKIN, Vector3(0, -FORE_ARM - 0.02, 0))
+		hand.scale = Vector3(0.9, 1.25, 0.65)
+		_sphere(al, 0.016, SKIN, Vector3(-sx * 0.03, -FORE_ARM - 0.005, 0.025))
 		arm_u.append(au)
 		arm_l.append(al)
 
+		# leg: hip, knee, ankle, shoe
 		var lu := _pivot(hips, Vector3(sx * 0.07, -HIP_DROP, 0))
 		_capsule(lu, 0.058, THIGH, PANTS, Vector3(0, -THIGH * 0.5, 0))
 		var ll := _pivot(lu, Vector3(0, -THIGH, 0))
-		_capsule(ll, 0.047, SHIN, PANTS, Vector3(0, -SHIN * 0.5, 0))
+		_sphere(ll, 0.05, PANTS, Vector3.ZERO)
+		_capsule(ll, 0.046, SHIN, PANTS, Vector3(0, -SHIN * 0.5, 0))
 		var ft := _pivot(ll, Vector3(0, -SHIN, 0))
-		_box(ft, Vector3(0.085, 0.06, 0.2), SHOE, Vector3(0, -0.03, 0.05))
+		_sphere(ft, 0.042, PANTS, Vector3.ZERO)
+		_box(ft, Vector3(0.085, 0.05, 0.19), SHOE, Vector3(0, -0.035, 0.045))
+		var toe := _sphere(ft, 0.045, SHOE, Vector3(0, -0.035, 0.13))
+		toe.scale = Vector3(1.0, 0.65, 1.0)
 		leg_u.append(lu)
 		leg_l.append(ll)
 		foot.append(ft)
@@ -151,24 +199,13 @@ func _ready() -> void:
 		_def([leg_l[side], foot[side]], b_th, _cap_shape(0.05, 0.44), Vector3(0, -0.2, 0), 1.5, leg_l[side])
 
 
-func _box_shape(size: Vector3) -> BoxShape3D:
-	var b := BoxShape3D.new()
-	b.size = size
-	return b
-
-
-func _sphere_shape(radius: float) -> SphereShape3D:
-	var s := SphereShape3D.new()
-	s.radius = radius
-	return s
-
-
 func animate(delta: float, vx: float, vy: float, on_floor: bool, crouching: bool, grabbing: bool, facing: float, input_dir: float) -> void:
 	idle_t += delta
 	var k := clampf(delta * 10.0, 0.0, 1.0)
 	blend_crouch = lerpf(blend_crouch, 1.0 if crouching else 0.0, k)
 	blend_grab = lerpf(blend_grab, 1.0 if grabbing else 0.0, k)
 	blend_air = lerpf(blend_air, 0.0 if on_floor else 1.0, clampf(delta * 14.0, 0.0, 1.0))
+	blend_wound = lerpf(blend_wound, 1.0 if wounded else 0.0, clampf(delta * 4.0, 0.0, 1.0))
 	yaw = lerp_angle(yaw, deg_to_rad(90.0 * facing), clampf(delta * 12.0, 0.0, 1.0))
 	rotation.y = yaw
 
@@ -176,22 +213,25 @@ func animate(delta: float, vx: float, vy: float, on_floor: bool, crouching: bool
 	var moving := absf(input_dir) > 0.0 and speed > 0.2 and on_floor
 	var walk_amt := clampf(speed / 4.0, 0.0, 1.0)
 	if moving:
-		phase += delta * 2.5 * speed
+		phase += delta * 2.5 * speed * (1.0 - 0.2 * blend_wound)
 		var step_idx := int(floor(phase / PI))
 		if step_idx != last_step:
 			last_step = step_idx
 			if blend_crouch < 0.5:
 				footstep.emit(walk_amt)
-	var gait_target := lerpf(0.3, 0.85, walk_amt) if moving else 0.0
+	var gait_target := lerpf(0.3, 0.85, walk_amt) * (1.0 - 0.25 * blend_wound) if moving else 0.0
 	gait = lerpf(gait, gait_target, clampf(delta * 8.0, 0.0, 1.0))
 	var kf := gait / 0.85
 	var fall := clampf(-vy / 6.0, 0.0, 1.0)
+	var sl := clampf(slope, -0.7, 0.7)
 
-	# Legs: hip swing, knee flexion in the swing phase, flat feet
+	# Legs: hip swing, knee flexion in the swing phase, flat feet (matching the slope)
 	var hip_h := [0.0, 0.0]
 	for i in 2:
 		var ph := phase + (0.0 if i == 0 else PI)
 		var a := gait * sin(ph)
+		if i == 1:
+			a *= 1.0 - 0.3 * blend_wound
 		var knee := 1.5 * kf * pow(maxf(0.0, cos(ph)), 1.2) + 0.12 * kf
 		a += 1.05 * blend_crouch + 0.12 * blend_grab
 		knee += 1.8 * blend_crouch + 0.1 * blend_grab
@@ -201,11 +241,11 @@ func animate(delta: float, vx: float, vy: float, on_floor: bool, crouching: bool
 		knee = lerpf(knee, k_air, blend_air)
 		leg_u[i].rotation.x = -a
 		leg_l[i].rotation.x = knee
-		foot[i].rotation.x = (a - knee) * 0.85
+		foot[i].rotation.x = (a - knee) * 0.85 - sl * 0.9 * (1.0 - blend_air)
 		hip_h[i] = HIP_DROP + THIGH * cos(a) + SHIN * cos(a - knee) + ANKLE
 
 	# Pelvis height keeps the lowest foot on the ground; spring on landing
-	var target_h: float = maxf(hip_h[0], hip_h[1]) + 0.1 * blend_air
+	var target_h: float = maxf(hip_h[0], hip_h[1]) + 0.1 * blend_air - 0.02 * blend_wound
 	if on_floor and was_air:
 		hip_v -= 1.6
 	was_air = not on_floor
@@ -214,8 +254,9 @@ func animate(delta: float, vx: float, vy: float, on_floor: bool, crouching: bool
 	hip_off += hip_v * delta
 	hips.position.y = target_h + hip_off
 
-	# Torso lean (spring) and counter-twist
+	# Torso lean (spring), slope lean, wounded stoop, hit recoil
 	var lean_target := 0.06 + (0.16 * walk_amt if moving else 0.0) + 0.6 * blend_crouch + 0.28 * blend_grab
+	lean_target += 0.2 * blend_wound + sl * 0.7 - 0.55 * hurt
 	lean_v += (lean_target - lean) * 120.0 * delta
 	lean_v *= exp(-10.0 * delta)
 	lean += lean_v * delta
@@ -223,26 +264,27 @@ func animate(delta: float, vx: float, vy: float, on_floor: bool, crouching: bool
 	chest.rotation.x = lean * 0.55
 	spine.rotation.y = 0.1 * sin(phase) * kf
 	chest.rotation.y = -0.16 * sin(phase) * kf
-	chest.scale.y = 1.0 + 0.01 * sin(idle_t * 2.2)
+	chest.scale.y = 1.0 + 0.01 * sin(idle_t * 2.2) + 0.012 * blend_wound * sin(idle_t * 6.0)
 
 	# Head keeps looking ahead, with a little lag
-	var head_target := -lean * 0.85 + 0.03 * sin(idle_t * 0.9)
+	var head_target := -lean * 0.85 + 0.03 * sin(idle_t * 0.9) + 0.35 * hurt - 0.12 * blend_wound
 	head_v += (head_target - head_p) * 70.0 * delta
 	head_v *= exp(-8.0 * delta)
 	head_p += head_v * delta
 	neck.rotation.x = head_p * 0.5
 	head.rotation.x = head_p * 0.5 - 0.08 * sin(phase * 2.0) * kf
 
-	# Arms: opposite swing, elbow bend, reach forward when pushing, up when jumping
+	# Arms: opposite swing, elbow bend, reach forward when pushing, up when jumping, flung back when hit
 	for i in 2:
 		var li := phase + (0.0 if i == 0 else PI)
 		var alpha := -0.55 * gait * sin(li) + 0.1 + 0.015 * sin(idle_t * 1.8 + i)
-		var elbow := 0.2 + 0.5 * kf * maxf(0.0, -sin(li))
+		var elbow := 0.2 + 0.5 * kf * maxf(0.0, -sin(li)) + 0.2 * blend_wound
 		alpha += 0.5 * blend_crouch
 		alpha = lerpf(alpha, 1.45, blend_grab)
 		elbow = lerpf(elbow, 0.3, blend_grab)
 		alpha = lerpf(alpha, 2.25, blend_air)
 		elbow = lerpf(elbow, 0.45, blend_air)
+		alpha -= 0.9 * hurt
 		arm_u[i].rotation.x = -alpha - lean
 		arm_l[i].rotation.x = -elbow
 
