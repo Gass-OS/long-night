@@ -1,74 +1,90 @@
-# 🌙 Long Night
+# 🏛️ Kasserine Stories 3D
 
-### A 3D night game in the city
+### An interactive 3D open-world story about Kasserine, Tunisia
 
-[![Godot 4](https://img.shields.io/badge/Godot-4-478CBF?style=for-the-badge&logo=godot-engine&logoColor=white)](https://godotengine.org)
-[![Android](https://img.shields.io/badge/Android-arm64-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Gass-OS/long-night/actions)
-[![Version 0.1](https://img.shields.io/badge/version-0.1-blue?style=for-the-badge)](https://github.com/Gass-OS/long-night)
-[![Build](https://github.com/Gass-OS/long-night/actions/workflows/build.yml/badge.svg)](https://github.com/Gass-OS/long-night/actions)
+[![React](https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react&logoColor=white)](https://react.dev)
+[![Three.js](https://img.shields.io/badge/Three.js-3D-000000?style=for-the-badge&logo=three.js&logoColor=white)](https://threejs.org)
+[![Capacitor](https://img.shields.io/badge/Capacitor-Android-119EFF?style=for-the-badge&logo=capacitor&logoColor=white)](https://capacitorjs.com)
+[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 
-**Long Night** is a 3D night game built with **Godot** for **Android** — a city after dark, a drone intro sweeping over the streets, police on patrol, and a character fighting to survive the night.
+**Kasserine Stories 3D** is an interactive 3D open-world story experience set in Kasserine, Tunisia. Explore a living 3D world in your browser or on Android, follow story missions, and meet the city — with a minimap radar, a game HUD, touch controls, and AI-powered storytelling.
 
 ---
 
 ## 📖 What it is
 
-- 🌃 **A city at night** — streets and a medina (`city.gd`, `medina.gd`), built for a dark, tense atmosphere
-- 🎬 **Drone intro** — a cinematic drone flyover with its own HUD, plus a video intro
-- 👮 **Police** — patrolling officers in the city
-- 🐕 **A dog** — man's best friend, in the night city
-- 🧍 **Character v2** — health and blood, with quality settings (LOW / MEDIUM / HIGH), FPS toggle and volume in the menu
-- 🎮 **Touch controls** — built for mobile play
+- 🌍 **A 3D open world** — a Three.js world of Kasserine (`src/game/world.ts`, `models.ts`, `textures.ts`), with an engine, audio and story system
+- 📖 **Story missions** — follow the story (`story.ts`) with mission briefings, objectives and a pause/settings flow
+- 🧭 **Game HUD** — health/objective HUD, minimap radar, touch controls built for mobile
+- 🌐 **Multilingual** — interface text in several languages (`i18n.ts`)
+- 🤖 **AI storytelling** — optional Gemini AI integration for story content (needs your own API key)
+- 📱 **Android app** — packaged with Capacitor (`com.kasserine.stories`), so the same world runs as a native Android app
 
-> **Status: early prototype (v0.1).** The game is in active development — step by step, with the character, police, drone intro and city already in place. Expect rough edges.
-
----
-
-## 📦 Get the game
-
-CI builds the APK on push to `main` — download it from the latest successful run's artifacts ([Actions page](https://github.com/Gass-OS/long-night/actions)).
-
-> The game is not on Google Play — the CI artifact is the way to install it for now.
+> **Status: early development.** The world, missions and HUD are in place and actively built. Expect rough edges.
 
 ---
 
-## 🛠️ Build it yourself
+## 🚀 Run locally
+
+**Prerequisites:** Node.js
 
 ```bash
-git clone https://github.com/Gass-OS/long-night.git
-cd long-night
-# Open project.godot with Godot 4 — project files live at the repo root
-# Android export: arm64-v8a, package com.aymen.longnight
+npm install
 ```
 
-Pushing to `main` triggers the same build in CI — no local Android SDK needed.
+Set your Gemini API key in `.env.local` (only needed for the AI story features):
 
-### Project details
+```
+GEMINI_API_KEY=your_key_here
+```
 
-| | |
-|:---|---|
-| **Engine** | Godot 4, Forward+ renderer |
-| **Language** | GDScript |
-| **Genre** | 3D night action |
-| **Android** | arm64-v8a — package `com.aymen.longnight` |
+Then run the app:
+
+```bash
+npm run dev
+```
+
+Open the Vite dev server (port 3000) in your browser.
+
+## 📦 Build
+
+```bash
+npm run build        # vite build --base=./  → dist/
+npx cap sync android # sync the web build into the Android app
+```
+
+The Android project lives in `android/` (Capacitor 8). Open it in Android Studio to build and install the APK.
 
 ### Project layout
 
 ```
-├── main.tscn / menu.tscn / intro.tscn   # game, menu, intro
-├── city.gd / medina.gd                 # the night city
-├── character.gd / player.gd            # the character + player
-├── police.gd / dog.gd / drone.gd       # police, dog, drone intro
-├── hud.gd / audio.gd / settings.gd     # HUD, audio, settings
-└── assets/                             # character, models, textures
+├── src/
+│   ├── game/        # engine, world, models, textures, story, audio, i18n
+│   ├── components/  # GameHUD, MinimapRadar, MissionModal, TouchControls,
+│   │                # IntroModal, PauseSettingsModal
+│   ├── App.tsx
+│   └── main.tsx
+├── android/         # Capacitor Android app (com.kasserine.stories)
+├── public/
+├── index.html       # "Kasserine Stories 3D — Tunisia Open World"
+└── vite.config.ts
 ```
+
+### Tech
+
+| | |
+|:---|---|
+| **Frontend** | React 18 + TypeScript + Vite + Tailwind CSS |
+| **3D** | Three.js |
+| **Mobile** | Capacitor 8 (Android) |
+| **AI** | Google Gemini (`@google/genai`, optional) |
 
 ---
 
 <div align="center">
 
-**Made with Godot 🇹🇳**
+**Made in Kasserine, Tunisia 🇹🇳**
 
-*A Gass-OS game — survive the long night.*
+*A Gass-OS project — stories from the city, in 3D.*
 
 </div>
